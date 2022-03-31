@@ -49,15 +49,18 @@ module internal StateMonad
         S (fun s -> Success ((), {s with vars = Map.empty :: s.vars}))
 
     let pop : SM<unit> = 
-        S (fun s -> Success ((), {s with vars = s.vars.Tail}
+        S (fun s -> Success ((), {s with vars = s.vars.Tail}))
 
     let wordLength : SM<int> = 
         S (fun s -> Success (s.word.Length, s))      
 
-    let characterValue (pos : int) : SM<char> = 
-        wordLength >>= fun l -> if pos>(l-1)  || pos<0 then 
-                                    S (fun s -> Failure(IndexOutOfBounds pos))
-                                    else S (fun s -> Success
+    let getCharValue (pos : int) (f: 'a * 'b -> 'c) (s: State): Result<'d, Error>
+        = match List.tryItem pos s.word with
+            | Some pair -> Success (f pair, s)
+            | None -> Failure (IndexOutOfBounds pos)
+
+    let characterValue (pos : int) : SM<char> =
+        S (getCharValue pos fst)
 
     let pointValue (pos : int) : SM<int> = 
           wordLength >>= fun l -> if pos>(l-1) || pos<0 then 
@@ -79,15 +82,15 @@ module internal StateMonad
               | None   -> Failure (VarNotFound x))
 
     let declare (var : string) : SM<unit> =
-    let aux (lst: Map<string, int> list) : Result<Map<string, int> list, Error> =
-        match lst with
-        // The following case is not "precise", since VarNotFound is an error for a different
-        // situation, but this is the closest match..
-            | []              -> Failure (VarNotFound var)
-            | state :: states ->
-                match Map.tryFind var state with
-                | Some _ -> Failure (VarExists var)
-                | None   -> Success ((Map.add var 0 state) :: states)
+        let aux (lst: Map<string, int> list) : Result<Map<string, int> list, Error> =
+            match lst with
+            // The following case is not "precise", since VarNotFound is an error for a different
+            // situation, but this is the closest match..
+                | []              -> Failure (VarNotFound var)
+                | state :: states ->
+                    match Map.tryFind var state with
+                    | Some _ -> Failure (VarExists var)
+                    | None   -> Success ((Map.add var 0 state) :: states)
             
         S (fun s ->
             match Set.contains var s.reserved with

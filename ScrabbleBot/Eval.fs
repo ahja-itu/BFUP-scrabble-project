@@ -4,17 +4,6 @@ module internal Eval
 
     open StateMonad
 
-    let add a b = 
-        a >>= fun a' ->
-        b >>= fun b' ->
-        ret(a'+b') 
-
-    let div a b = 
-        a >>= fun a' ->
-        b >>= fun b' ->
-        if b' = 0 then fail DivisionByZero
-        else ret(a'/b')
-
     type aExp =
         | N of int
         | V of string
@@ -66,44 +55,61 @@ module internal Eval
     let (.>=.) a b = ~~(a .<. b)                (* numeric greater than or equal to *)
     let (.>.) a b = ~~(a .=. b) .&&. (a .>=. b) (* numeric greater than *)    
 
-     let rec arithEval a : SM<int> = 
+    let binop f a b  =
+        a >>= fun x ->
+        b >>= fun y ->
+            ret (f x y)
+ 
+    let nonzeroBinop f a b =
+        a >>= fun x ->
+        b >>= fun y ->
+            if y <> 0 then ret (f x y) else fail DivisionByZero
+            
+    let div (a: SM<int>) (b: SM<int>) : SM<int> =
+         nonzeroBinop (/) a b
+             
+    let mod' (a: SM<int>) (b: SM<int>) : SM<int> =
+        nonzeroBinop (%) a b
+
+    let rec arithEval (a: aExp) : SM<int> =
         match a with
-        | N i -> ret i
-        | V s -> lookup s
+        | N n -> ret n
+        | V str -> lookup str
         | WL -> wordLength
-        | PV a -> arithEval a >>= fun a' -> pointValue(a')
-        | Add (a, b) -> add (arithEval a) (arithEval b) 
-        | Sub (a, b) -> sub (arithEval a) (arithEval b)
-        | Mul (a, b) -> mul (arithEval a) (arithEval b)
+        | PV a' -> arithEval a' >>= pointValue
+        | Add (a, b) -> binop ( + ) (arithEval a) (arithEval b)
+        | Sub (a, b) -> binop ( - ) (arithEval a) (arithEval b)
+        | Mul (a, b) -> binop ( * ) (arithEval a) (arithEval b)
         | Div (a, b) -> div (arithEval a) (arithEval b)
-        | Mod (a, b) -> modd (arithEval a) (arithEval b)
-        | CharToInt c -> charEval c >>= fun c' -> ret (int c')
+        | Mod (a, b) -> mod' (arithEval a) (arithEval b)
+        | CharToInt c -> charEval c >>= (int >> ret)
 
-    and charEval c : SM<char> = 
+    and charEval c : SM<char> =
         match c with
-        | C c -> ret(c)
-        | CV a -> cv(arithEval a)  (* Character lookup at word index *)    
-        | ToUpper c -> toUpper(charEval c)
-        | ToLower c -> toLower(charEval c)
-        | IntToChar a -> intToChar(arithEval a)    
+        | C c -> ret c
+        | CV aExp -> arithEval aExp >>= characterValue
+        | ToUpper cExp -> charEval cExp >>= (System.Char.ToUpper >> ret)
+        | ToLower cExp -> charEval cExp >>= (System.Char.ToLower >> ret)
+        | IntToChar aExp -> arithEval aExp >>= (char >> ret)   
 
 
-    let rec boolEval b : SM<bool> = 
+    let isConsonant': char -> bool
+        = fun c ->
+            match System.Char.ToLower(c) with
+            | 'a'|'e'|'i'|'o'|'u'|'y' -> false
+            | _ -> true
+        
+    let rec boolEval b : SM<bool> =
         match b with
-        | TT -> ret true                        (* true *)
-        | FF -> ret false                        (* false *)
-
-        | AEq (a,b) -> arithEval a >>= fun a' -> arithEval b >>= fun b' -> ret(a'=b')
-        | ALt (a,b) -> arithEval a >>= fun a' -> arithEval b >>= fun b' -> ret(a'<b')
-
-        | Not b -> boolEval b >>= fun b' -> ret(not(b'))       (* boolean not *)
-        | Conj (a,b) -> boolEval a >>= fun a' -> boolEval b >>= fun b' -> ret(a' && b')  (* boolean conjunction *)
-        | IsVowel c -> charEval c >>= fun c' -> 
-                        match System.Char.ToLower(c') with
-                        | 'a' | 'e' | 'i' |'o' | 'u' | 'y' -> ret(true)
-                        | _ -> ret(false)                                                (* check for vowel *)
-        | IsLetter c -> charEval c >>= fun c' -> ret(System.Char.IsLetter(c'))     (* check for letter *)
-        | IsDigit c -> charEval c >>= fun c' -> ret(System.Char.IsDigit(c'))      (* check for digit *)
+        | TT -> ret true
+        | FF -> ret false
+        | AEq (a, b) -> binop (=) (arithEval a) (arithEval b)
+        | ALt (a, b) -> binop (<) (arithEval a) (arithEval b)
+        | Not a -> boolEval a >>= (ret << not)
+        | Conj (a, b) -> binop (&&) (boolEval a) (boolEval b)
+        | IsVowel cExp -> charEval cExp >>= (isConsonant' >> not >> ret)
+        | IsLetter cExp -> charEval cExp >>= (System.Char.IsLetter >> ret)
+        | IsDigit cExp -> charEval cExp >>= (System.Char.IsDigit >> ret)
 
 
     type stm =                    (* statements *)
@@ -130,6 +136,7 @@ module internal Eval
                 match cond' with
                 | true -> push >>>= stmntEval doStmnt >>>= pop >>>= stmntEval stmnt
                 | false -> ret ()
+
 (* Part 3 (Optional) *)
 
     type StateBuilder() =
@@ -142,28 +149,28 @@ module internal Eval
         
     let prog = new StateBuilder()
 
-       let arithEval2 a =
+    let arithEval2 a =
         prog {
-         match a with
-         | N n -> return n
-         | V str ->
-             let! res = lookup str
-             return res
-         | WL ->
-             let! res = wordLength
-             return res
-         | PV a' -> 
-             let! pos = arithEval a'
-             let! pv = pointValue pos
-             return pv
-         | Add (a, b) -> return! binop ( + ) (arithEval a) (arithEval b)
-         | Sub (a, b) -> return! binop ( - ) (arithEval a) (arithEval b)
-         | Mul (a, b) -> return! binop ( * ) (arithEval a) (arithEval b)
-         | Div (a, b) -> return! div (arithEval a) (arithEval b)
-         | Mod (a, b) -> return! mod' (arithEval a) (arithEval b)
-         | CharToInt c ->
-             let! c = charEval c
-             return (int c)
+            match a with
+            | N n -> return n
+            | V str ->
+                let! res = lookup str
+                return res
+            | WL ->
+                let! res = wordLength
+                return res
+            | PV a' -> 
+                let! pos = arithEval a'
+                let! pv = pointValue pos
+                return pv
+            | Add (a, b) -> return! binop ( + ) (arithEval a) (arithEval b)
+            | Sub (a, b) -> return! binop ( - ) (arithEval a) (arithEval b)
+            | Mul (a, b) -> return! binop ( * ) (arithEval a) (arithEval b)
+            | Div (a, b) -> return! div (arithEval a) (arithEval b)
+            | Mod (a, b) -> return! mod' (arithEval a) (arithEval b)
+            | CharToInt c ->
+                let! c = charEval c
+                return (int c)
         }
 
         
@@ -187,7 +194,7 @@ module internal Eval
     
     
     let rec boolEval2 b =
-         prog {
+        prog {
             match b with
             | TT -> return true
             | FF -> return false
@@ -206,7 +213,7 @@ module internal Eval
             | IsDigit cExp ->
                 let! c = charEval2 cExp
                 return System.Char.IsDigit c
-         }
+        }
          
     let rec stmntEval2 stmnt =
         prog {
@@ -249,23 +256,23 @@ module internal Eval
     type squareFun = word -> int -> int -> Result<int, Error>
 
     let stmntToSquareFun (stmnt: stm) : squareFun =
-    fun (word: word) (pos: int) (acc: int) ->
-        let state = mkState [("_pos_", pos); ("_acc_", acc); ("_result_", 0)] word ["_pos_"; "_acc_"; "_result_"]
-        stmntEval stmnt >>>= lookup "_result_" |> evalSM state
+        fun (word: word) (pos: int) (acc: int) ->
+            let state = mkState [("_pos_", pos); ("_acc_", acc); ("_result_", 0)] word ["_pos_"; "_acc_"; "_result_"]
+            stmntEval stmnt >>>= lookup "_result_" |> evalSM state
 
     type coord = int * int
 
     type boardFun = coord -> Result<squareFun option, Error> 
 
     let stmntToBoardFun (stmnt: stm) (m: Map<int, squareFun>) : boardFun =
-    fun ((x, y): coord) ->
-        let state = mkState [("_result_", 0); ("_x_", x); ("_y_", y)] [] ["_x_"; "_y_"; "_result_"]
-        match stmntEval2 stmnt >>>= lookup "_result_" |> evalSM state with
-        | Success i ->
-            match Map.tryFind i m with
-            | None    -> Success None
-            | someSF  -> Success someSF
-        | Failure f -> Failure f
+        fun ((x, y): coord) ->
+            let state = mkState [("_result_", 0); ("_x_", x); ("_y_", y)] [] ["_x_"; "_y_"; "_result_"]
+            match stmntEval2 stmnt >>>= lookup "_result_" |> evalSM state with
+            | Success i ->
+                match Map.tryFind i m with
+                | None    -> Success None
+                | someSF  -> Success someSF
+            | Failure f -> Failure f
 
     type board = {
         center        : coord
@@ -274,9 +281,9 @@ module internal Eval
     }
 
     let transformIds (ids: (int * stm) list) : Map<int, squareFun> =
-            ids |> List.map (fun (i, stmnt) -> (i, stmntToSquareFun stmnt)) |> Map.ofList
+        ids |> List.map (fun (i, stmnt) -> (i, stmntToSquareFun stmnt)) |> Map.ofList
 
     let mkBoard (c: coord) (defaultSq: stm) (boardStmnt: stm) (ids: (int * stm) list) : board =
-            { center = c;
-              defaultSquare = stmntToSquareFun defaultSq;
-              squares = transformIds ids |> stmntToBoardFun boardStmnt }
+        { center = c;
+            defaultSquare = stmntToSquareFun defaultSq;
+            squares = transformIds ids |> stmntToBoardFun boardStmnt }
