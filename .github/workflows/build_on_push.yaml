@@ -1,4 +1,4 @@
-name: dotnet test on push
+name: dotnet build on push
 
 # Only allow for one workflow run at the time on a per-branch basis
 concurrency:
@@ -26,6 +26,3 @@ jobs:
 
     - name: Build
       run: dotnet build --no-restore
-
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
