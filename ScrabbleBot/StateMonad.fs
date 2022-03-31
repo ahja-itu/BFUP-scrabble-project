@@ -48,13 +48,21 @@ module internal StateMonad
     let push : SM<unit> = 
         S (fun s -> Success ((), {s with vars = Map.empty :: s.vars}))
 
-    let pop : SM<unit> = failwith "Not implemented"      
+    let pop : SM<unit> = 
+        S (fun s -> Success ((), {s with vars = s.vars.Tail}
 
-    let wordLength : SM<int> = failwith "Not implemented"      
+    let wordLength : SM<int> = 
+        S (fun s -> Success (s.word.Length, s))      
 
-    let characterValue (pos : int) : SM<char> = failwith "Not implemented"      
+    let characterValue (pos : int) : SM<char> = 
+        wordLength >>= fun l -> if pos>(l-1)  || pos<0 then 
+                                    S (fun s -> Failure(IndexOutOfBounds pos))
+                                    else S (fun s -> Success
 
-    let pointValue (pos : int) : SM<int> = failwith "Not implemented"      
+    let pointValue (pos : int) : SM<int> = 
+          wordLength >>= fun l -> if pos>(l-1) || pos<0 then 
+                                    S (fun s -> Failure(IndexOutOfBounds pos))
+                                    else S (fun s -> Success ((snd (s.word.Item(pos))), s))
 
     let lookup (x : string) : SM<int> = 
         let rec aux =
@@ -70,5 +78,37 @@ module internal StateMonad
               | Some v -> Success (v, s)
               | None   -> Failure (VarNotFound x))
 
-    let declare (var : string) : SM<unit> = failwith "Not implemented"   
-    let update (var : string) (value : int) : SM<unit> = failwith "Not implemented"      
+    let declare (var : string) : SM<unit> =
+    let aux (lst: Map<string, int> list) : Result<Map<string, int> list, Error> =
+        match lst with
+        // The following case is not "precise", since VarNotFound is an error for a different
+        // situation, but this is the closest match..
+            | []              -> Failure (VarNotFound var)
+            | state :: states ->
+                match Map.tryFind var state with
+                | Some _ -> Failure (VarExists var)
+                | None   -> Success ((Map.add var 0 state) :: states)
+            
+        S (fun s ->
+            match Set.contains var s.reserved with
+            | true  -> Failure (ReservedName var)
+            | false -> match aux s.vars with
+                        | Success lst           -> Success ((), {s with vars = lst})
+                        | Failure typeOfFailure -> Failure typeOfFailure)
+        
+    let update (var : string) (value : int) : SM<unit> =
+        let rec aux (lst: Map<string, int> list) (acc: Map<string, int> list) : Result<Map<string, int> list, Error> =
+            match lst with
+            | []      -> Failure (VarNotFound var)
+            | x :: xs ->
+                match Map.tryFind var x with
+                | Some _ -> Success ((List.rev acc) @ [(Map.add var value x)] @ xs)
+                | None -> aux xs (x :: acc)
+        
+        S (fun s ->
+            match s.vars with
+            | [] -> Failure (VarNotFound var)
+            | _  ->
+                match aux s.vars [] with
+                | Success vars' -> Success ((), {s with vars = vars'})
+                | Failure f -> Failure f)
