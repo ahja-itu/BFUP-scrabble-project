@@ -11,65 +11,221 @@ module internal Parser
     open FParsecLight.TextParser     // Industrial parser-combinator library. Use for Scrabble Project.
     
     
-    let pIntToChar  = pstring "not implemented"
-    let pPointValue = pstring "not implemented"
+    let pIntToChar  = pstring "intToChar"
+    let pPointValue = pstring "pointValue"
+    let pCharToInt  = pstring "charToInt"
+    let pToUpper    = pstring "toUpper"
+    let pToLower    = pstring "toLower"
+    let pCharValue  = pstring "charValue"
+    let pTrue       = pstring "true"
+    let pFalse      = pstring "false"
+    let pIsDigit    = pstring "isDigit"
+    let pIsLetter   = pstring "isLetter"
+    let pIsVowel    = pstring "isVowel"
+    let pif         = pstring "if"
+    let pthen       = pstring "then"
+    let pelse       = pstring "else"
+    let pwhile      = pstring "while"
+    let pdo         = pstring "do"
+    let pdeclare    = pstring "declare"
 
-    let pCharToInt  = pstring "not implemented"
-    let pToUpper    = pstring "not implemented"
-    let pToLower    = pstring "not implemented"
-    let pCharValue  = pstring "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.2
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    let pTrue       = pstring "not implemented"
-    let pFalse      = pstring "not implemented"
-    let pIsDigit    = pstring "not implemented"
-    let pIsVowel    = pstring "not implemented"
-    let pIsLetter   = pstring "not implemented"
+    let whitespaceChar = satisfy System.Char.IsWhiteSpace <?> "whitespace"
+    let pletter        = satisfy System.Char.IsLetter <?> "letter"
+    let palphanumeric  = satisfy System.Char.IsLetterOrDigit <?> "alphanumeric"
 
-    let pif       = pstring "not implemented"
-    let pthen     = pstring "not implemented"
-    let pelse     = pstring "not implemented"
-    let pwhile    = pstring "not implemented"
-    let pdo       = pstring "not implemented"
-    let pdeclare  = pstring "not implemented"
+    let spaces         = many whitespaceChar <?> "spaces"
+    let spaces1        = many1 whitespaceChar <?> "spaces1"
 
-    let whitespaceChar = pstring "not implemented"
-    let pletter        = pstring "not implemented"
-    let palphanumeric  = pstring "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.3
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    let spaces         = pstring "not implemented"
-    let spaces1        = pstring "not implemented"
+    let (.>*>.) p1 p2 = p1 .>> spaces .>>. p2
+    let (.>*>) p1 p2  = p1 .>> spaces .>> p2
+    let (>*>.) p1 p2  = p1 >>. spaces >>. p2
 
-    let (.>*>.) _ _ = failwith "not implemented"
-    let (.>*>) _ _  = failwith "not implemented"
-    let (>*>.) _ _  = failwith "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.4
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    let parenthesise _ = failwith "not implemented"
-
-    let pid = pstring "not implemented"
-
+    let parseAnyBrackets p bracketOpen bracketClose
+        = pchar bracketOpen >*>. p .>*> pchar bracketClose
+    let parenthesise p = parseAnyBrackets p '(' ')'
+    let curlybrackets p = parseAnyBrackets p '{' '}'
     
-    let unop _  = failwith "not implemented"
-    let binop _  = failwith "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.5
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    
+    let charListToString lst = lst |> List.map string |> List.reduce (+)
+
+    let pid =
+        (pchar '_' <|> pletter) .>>.
+        many (palphanumeric <|> pchar '_') |>> 
+        (fun (x, y) -> charListToString (x :: y)) <?> "id"
+
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.6
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+    let unop op = fun a -> op >*>. a
+
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.7
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    
+    let binop (op: Parser<'a>) (p1: Parser<'b>) (p2: Parser<'c>) : Parser<'b * 'c>
+        = p1 .>*> op .>*>. p2
 
     let TermParse, tref = createParserForwardedToRef<aExp>()
     let ProdParse, pref = createParserForwardedToRef<aExp>()
     let AtomParse, aref = createParserForwardedToRef<aExp>()
+    
+    // For exercise 7.9
+    let charParse, cref = createParserForwardedToRef<cExp>()
 
-    let AddParse = binop (pchar '+') ProdParse TermParse |>> Add <?> "Add"
-    do tref := choice [AddParse; ProdParse]
+    // For exercise 7.10
+    let BoolParse1, bp1ref = createParserForwardedToRef<bExp>()
+    let BoolParse2, bp2ref = createParserForwardedToRef<bExp>()
+    let BoolParse3, bp3ref = createParserForwardedToRef<bExp>()
 
+    // Given from the template
     let MulParse = binop (pchar '*') AtomParse ProdParse |>> Mul <?> "Mul"
-    do pref := choice [MulParse; AtomParse]
-
     let NParse   = pint32 |>> N <?> "Int"
     let ParParse = parenthesise TermParse
-    do aref := choice [NParse; ParParse]
 
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.8
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+    let AddParse = binop (pchar '+') ProdParse ProdParse   |>> Add <?> "Add"
+    let SubParse = binop (pchar '-') ProdParse ProdParse   |>> Sub <?> "Sub"
+    let DivParse = binop (pchar '/') AtomParse ProdParse   |>> Div <?> "Div"
+    let ModParse = binop (pchar '%') AtomParse ProdParse   |>> Mod <?> "Mod"
+    let PVParse  = pPointValue >*>. parenthesise ProdParse |>> PV  <?> "PV" //
+    let NegParse = unop (pchar '-') AtomParse              |>> (fun f -> Mul ((N -1), f)) <?> "Neg"
+    let VParse   = pid |>> V <?> "V"
+
+    // From the future
+    let CharToIntParse = pCharToInt >*>. parenthesise charParse |>> CharToInt <?> "CharToInt"
+
+    // Given
     let AexpParse = TermParse 
 
-    let CexpParse = pstring "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.9
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    let BexpParse = pstring "not implemented"
+    let CharParse      = pchar '\''  >>. anyChar .>> pchar '\'' |>> C         <?> "C"
+    let CharValueParse = pCharValue >*>. parenthesise AexpParse |>> CV        <?> "CV" 
+    let IntToCharParse = pIntToChar >*>. parenthesise AexpParse |>> IntToChar <?> "IntToChar"
+    let ToUpperParse   = pToUpper   >*>. parenthesise charParse |>> ToUpper   <?> "ToUpper"
+    let ToLowerParse   = pToLower   >*>. parenthesise charParse |>> ToLower   <?> "ToLower"
+
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.8 + 7.9
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+    // Term Parsing
+    do tref.Value <-
+        choice [ 
+            AddParse
+            SubParse
+            ProdParse
+        ]
+
+    // Product Parsing
+    do pref.Value <-
+        choice [ 
+            MulParse
+            DivParse
+            ModParse
+            AtomParse
+        ]
+
+    // Atom Parsing
+    do aref.Value <-
+        choice [
+            ParParse
+            NegParse
+            PVParse
+            CharToIntParse
+            VParse
+            NParse
+        ]
+
+    do cref.Value <- 
+        choice [
+            IntToCharParse
+            CharValueParse
+            CharParse
+            ToUpperParse
+            ToLowerParse
+        ]
+
+    let CexpParse = charParse
+
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.10
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+    let TrueParse = pTrue |>> (fun _ -> TT) <?> "TT"
+    let FalseParse = pFalse |>> (fun _ -> FF) <?> "FF"
+
+    // Loosest bindings
+    let ConjunctionParse = binop (pstring "/\\") (BoolParse2) (BoolParse1) |>> Conj <?> "Conj"
+    let DisjunctionParse = binop (pstring "\\/") (BoolParse2) (BoolParse1) |>> (fun (l, r) -> Conj ((Not l), (Not r))) <?> "Disj"
+    
+    // Middle-strength bindings
+    let EqualParse          = binop (pchar '=')    AexpParse AexpParse |>> AEq <?> "="
+    let DifferentParse      = binop (pstring "<>") AexpParse AexpParse |>> (fun (l, r) -> l .<>. r) <?> "<>"
+    let LessThanParse       = binop (pchar '<')    AexpParse AexpParse |>> ALt <?> "<"
+    let LessThanEqualsParse = binop (pstring "<=") AexpParse AexpParse |>> (fun (l, r) -> l .<=. r) <?> "<="
+    let GreaterThan         = binop (pchar '>')    AexpParse AexpParse |>> (fun (l, r) -> l .>. r) <?> ">"
+    let GreaterEqualsThan   = binop (pstring ">=") AexpParse AexpParse |>> (fun (l, r) -> l .>=. r) <?> ">="
+
+    // Strongest bindings
+    let NotParse      = unop (pchar '~') BoolParse1           |>> Not      <?> "Not"
+    let IsLetterParse = pIsLetter >*>. parenthesise charParse |>> IsLetter <?> "IsLetter"
+    let IsDigitParse  = pIsDigit  >*>. parenthesise charParse |>> IsDigit  <?> "IsDigit"
+    let IsVowelParse  = pIsVowel  >*>. parenthesise charParse |>> IsVowel  <?> "IsVowel"
+
+    // TODO: Nuværende implementation kan ikke håndtere parenteser der grupperer statements sammen
+
+    do bp1ref.Value <-
+        choice [
+            ConjunctionParse
+            DisjunctionParse
+            BoolParse2
+        ]
+
+    do bp2ref.Value <-
+        choice [
+            EqualParse
+            DifferentParse
+            LessThanParse
+            LessThanEqualsParse
+            GreaterThan
+            GreaterEqualsThan
+            BoolParse3
+        ]
+
+    do bp3ref.Value <-
+        choice [
+            NotParse
+            IsLetterParse
+            IsDigitParse
+            IsVowelParse
+            FalseParse
+            TrueParse
+        ]
+
+    let BexpParse = BoolParse1
 
     let stmParse = pstring "not implemented"
 
