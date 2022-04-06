@@ -5,10 +5,11 @@
 
 module internal Parser
 
+    open StateMonad
     open ScrabbleUtil // NEW. KEEP THIS LINE.
     open System
     open Eval
-    open FParsecLight.TextParser     // Industrial parser-combinator library. Use for Scrabble Project.
+    open FParsecLight.TextParser      // Industrial parser-combinator library. Use for Scrabble Project.
     
     
     let pIntToChar  = pstring "intToChar"
@@ -227,23 +228,33 @@ module internal Parser
 
     let BexpParse = BoolParse1
 
+    // TODO: issue #3
     let stmParse = pstring "not implemented"
 
+    // Inserted from newest project template
     (* The rest of your parser goes here *)
-
     type word   = (char * int) list
-    type square = Map<int, word -> int -> int -> int>
-
-    let parseSquareFun _ = failwith "not implemented"
-
-    let parseBoardFun _ = failwith "not implemented"
-
-    type boardFun = coord -> square option
+    type squareFun = word -> int -> int -> Result<int, Error>
+    type square = Map<int, squareFun>
+    
+    type boardFun2 = coord -> Result<square option, Error>
+        
     type board = {
         center        : coord
         defaultSquare : square
-        squares       : boardFun
+        squares       : boardFun2
     }
 
-    let parseBoardProg (bp : boardProg) : board = failwith "not implemented"
+    // TODO: issue #4
+    let parseBoardFun (sourceCode: string) (lookupTable: Map<int, square>) : boardFun2 
+        = failwith "not implemented"
+
+    let parseSquareProg arg1 = failwith "not implemented"
+    
+    // TODO: issue #5
+    let parseBoardProg = failwith "not implemented"
+
+    // TODO: issue #6
+    // Default (unusable) board in case you are not implementing a parser for the DSL.
+    let mkBoard : boardProg -> board = fun _ -> {center = (0,0); defaultSquare = Map.empty; squares = fun _ -> Success (Some Map.empty)}
 
