@@ -1,10 +1,13 @@
 module Dictionary
+    open System
     open System.Collections
     
     (* Type declarations *)
     type Dictionary =
         // Leaf of bool
-        | Node of bool * Generic.Dictionary<char, Dictionary>
+        | Node of int * bool * Generic.Dictionary<char, Dictionary>
+    
+    let mutable n = 0
     
     (* Helper functions: *)
     let stop = char 0
@@ -38,34 +41,36 @@ module Dictionary
     
     (* Implemented signature functions *)
     let empty : unit -> Dictionary
-        = fun () -> Node (false, Generic.Dictionary<char, Dictionary>())
+        = fun () -> Node (0, false, Generic.Dictionary<char, Dictionary>())
+        
+    let emptyWithLevel (n: int) :  Dictionary
+        = Node (n + 1, false, Generic.Dictionary<char, Dictionary>())
    
     let emptyMap = Map.empty<char, Dictionary>
-    let emptyNode = empty()
+    let emptyNode lastLevel = emptyWithLevel lastLevel
     
     let insert : string -> Dictionary -> Dictionary
         = fun word dict ->
-            let rec aux (Node (isWord, subtreeMap)) word' =
+            let rec aux (Node (level, isWord, subtreeMap)) word' =
                 match word' with
-                | [] -> Node (true, subtreeMap)
+                | [] -> Node (level, true, subtreeMap)
                 | x :: xs ->
                     let childNode = match subtreeMap.TryGetValue(x) with
-                                    | false, _ -> emptyNode
+                                    | false, _ -> emptyNode level
                                     | true, subtreeMap' -> subtreeMap'
                     subtreeMap.[x] <- aux childNode xs
                     
-                    Node (isWord, subtreeMap)
+                    Node (level, isWord, subtreeMap)
             
-            wordPermutations word
-            |> List.fold aux dict
-    
+            wordPermutations word |> List.fold aux dict
+
     
     let dictGet : char -> Dictionary -> (bool * Dictionary) option
-        = fun c (Node (_, dict)) ->
+        = fun c (Node (level, _, dict)) ->
             match dict.TryGetValue(c) with
             | false, _ -> None
             | true, dict' -> match dict' with
-                               | Node (isWord', _) -> Some (isWord', dict')
+                               | Node (_, isWord', _) -> Some (isWord', dict')
 
     
     let step : char -> Dictionary -> (bool * Dictionary) option
@@ -74,7 +79,7 @@ module Dictionary
     let reverse : Dictionary -> (bool * Dictionary) option
         = fun dict -> dictGet stop dict
         
-    let isWord (Node (b, _)) = b
+    let isWord (Node (_, b, _)) = b
    
     let lookup : string -> Dictionary -> bool
         = fun word dict ->
