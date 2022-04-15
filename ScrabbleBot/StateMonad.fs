@@ -54,18 +54,17 @@ module internal StateMonad
     let wordLength : SM<int> = 
         S (fun s -> Success (s.word.Length, s))      
 
-    let getCharValue (pos : int) (f: 'a * 'b -> 'c) (s: State): Result<'d, Error>
-        = match List.tryItem pos s.word with
-            | Some pair -> Success (f pair, s)
-            | None -> Failure (IndexOutOfBounds pos)
-
     let characterValue (pos : int) : SM<char> =
-        S (getCharValue pos fst)
+        S (fun s ->
+            match List.tryItem pos s.word with
+            | Some (a, _) -> Success (a, s)
+            | None -> Failure (IndexOutOfBounds pos))
 
-    let pointValue (pos : int) : SM<int> = 
-          wordLength >>= fun l -> if pos>(l-1) || pos<0 then 
-                                    S (fun s -> Failure(IndexOutOfBounds pos))
-                                    else S (fun s -> Success ((snd (s.word.Item(pos))), s))
+    let pointValue (pos : int) : SM<int> =
+        S (fun s ->
+            match List.tryItem pos s.word with
+            | Some (_, b) -> Success (b, s)
+            | None -> Failure (IndexOutOfBounds pos))
 
     let lookup (x : string) : SM<int> = 
         let rec aux =
