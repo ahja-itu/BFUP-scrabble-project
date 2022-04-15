@@ -56,7 +56,7 @@ module internal Parser
     let parseAnyBrackets p bracketOpen bracketClose
         = pchar bracketOpen >*>. p .>*> pchar bracketClose
     let parenthesise p = parseAnyBrackets p '(' ')'
-    let curlybrackets p = parseAnyBrackets p '{' '}'
+    let curlybracketise p = parseAnyBrackets p '{' '}'
     
     // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     // Exercise 7.5
@@ -93,6 +93,10 @@ module internal Parser
     let BoolParse1, bp1ref = createParserForwardedToRef<bExp>()
     let BoolParse2, bp2ref = createParserForwardedToRef<bExp>()
     let BoolParse3, bp3ref = createParserForwardedToRef<bExp>()
+
+    // For exercise 7.11
+    let StmntParsePrimary, spref = createParserForwardedToRef<stm>()
+    let StmntParseSecondary, ssref = createParserForwardedToRef<stm>()
 
     // Given from the template
     let MulParse = binop (pchar '*') AtomParse ProdParse |>> Mul <?> "Mul"
@@ -228,8 +232,58 @@ module internal Parser
 
     let BexpParse = BoolParse1
 
-    // TODO: issue #3
-    let stmParse = pstring "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.11
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+    let LetParse : Parser<stm> =
+        pid .>*> pstring ":=" .>*>. AexpParse |>> Ass <?> "Let"
+
+    let DeclareParse : Parser<stm> =
+        pdeclare >>. spaces1 >>. pid |>> Declare <?> "Declare"
+        
+    let SemiColonParse : Parser<stm> =
+        StmntParseSecondary .>*> pchar ';' .>*>. StmntParsePrimary |>> Seq <?> "Seq"
+    
+    let IfThenElseParse : Parser<stm> =
+        pif
+         >*>. parenthesise BexpParse
+        .>*> pthen
+        .>*>. curlybracketise StmntParseSecondary
+        .>*> pelse
+        .>*>. curlybracketise StmntParseSecondary
+        |>> (fun ((boolExp, trueStm), falseStm) -> ITE (boolExp, trueStm, falseStm)) <?> "IfElse"
+    
+    let IfThenParse : Parser<stm> =
+        pif
+         >*>. parenthesise BexpParse
+        .>*> pthen
+        .>*>. curlybracketise StmntParseSecondary
+        |>> (fun (boolExp, trueStm) -> ITE (boolExp, trueStm, Skip)) <?> "IfThen"
+        
+    let WhileParse : Parser<stm> =
+        pwhile
+         >*>. parenthesise BexpParse    
+        .>*> pdo
+        .>*>. curlybracketise StmntParseSecondary
+        |>> While <?> "While"
+
+    do spref.Value <- choice
+        [
+            SemiColonParse
+            StmntParseSecondary
+        ]
+
+    do ssref.Value <- choice
+        [
+            LetParse
+            DeclareParse
+            IfThenElseParse
+            IfThenParse
+            WhileParse
+        ]
+
+    let stmntParse = StmntParsePrimary
 
     // Inserted from newest project template
     (* The rest of your parser goes here *)
@@ -245,16 +299,81 @@ module internal Parser
         squares       : boardFun2
     }
 
-    // TODO: issue #4
-    let parseBoardFun (sourceCode: string) (lookupTable: Map<int, square>) : boardFun2 
-        = failwith "not implemented"
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // From exercise 6.12
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    let parseSquareProg arg1 = failwith "not implemented"
+    let stmntToSquareFun (stmnt: stm) : squareFun =
+        fun (word: word) (pos: int) (acc: int) ->
+            let state = mkState [("_pos_", pos); ("_acc_", acc); ("_result_", 0)] word ["_pos_"; "_acc_"; "_result_"]
+            stmntEval2 stmnt >>>= lookup "_result_" |> evalSM state
+
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // From exercise 6.13
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+    let returnIfFound (m: Map<int, 'a>) (i: int) : SM<'a option> =
+        match m.TryFind i with
+        | Some x -> ret <| Some x
+        | _ -> ret None
     
-    // TODO: issue #5
-    let parseBoardProg = failwith "not implemented"
+    let stmntToBoardFun (stmnt: stm) (m: Map<int, 'a>) : coord -> Result<'a option, Error> =
+       fun ((x, y): coord) ->
+           let _a = 0
+           let state = mkState [("_result_", 0); ("_x_", x); ("_y_", y)] [] ["_x_"; "_y_"; "_result_"]
+           
+           stmntEval2 stmnt >>>=
+           lookup "_result_" >>=
+           (returnIfFound m)
+           |> evalSM state
 
-    // TODO: issue #6
-    // Default (unusable) board in case you are not implementing a parser for the DSL.
-    let mkBoard : boardProg -> board = fun _ -> {center = (0,0); defaultSquare = Map.empty; squares = fun _ -> Success (Some Map.empty)}
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.12
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    
+    
+    let sourceToSquareFun source = 
+        (run stmntParse >> getSuccess >> stmntToSquareFun) source
+    
+    let sourceToSquareFun' _ = sourceToSquareFun
+    
+    let parseSquareProg (sqp : squareProg) : square =
+        
+        // Non-parallel version:
+        // Map.map sourceToSquareFun' sqp
+        
+        // Parallel version
+        Map.toArray sqp
+        |> Array.Parallel.map(fun (k, v) ->
+            (k, sourceToSquareFun v))
+        |> Map.ofArray
 
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.13
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    
+    let parseBoardProg (source: string) (squares: Map<int, square>) : boardFun2 =
+        run stmntParse source
+        |> getSuccess
+        |> fun stmnt -> stmntToBoardFun stmnt squares
+    
+    let parseBoardFun = parseBoardProg
+
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    // Exercise 7.14
+    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    let mkBoard (bp : boardProg) : board =
+        // Non-parallel version
+        //let m' = Map.map (fun _ sq -> parseSquareProg sq) bp.squares
+        
+        // Parallel version
+        let m'' = Map.toArray bp.squares
+                    |> Array.Parallel.map (fun (k, v) ->
+                        (k, parseSquareProg v))
+                    |> Map.ofArray
+        
+        {
+            squares = parseBoardProg bp.prog m''
+            center = bp.center
+            defaultSquare = m''.[bp.usedSquare]
+        }
