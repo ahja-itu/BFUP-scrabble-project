@@ -7,18 +7,12 @@ concurrency:
 
 on: push
 
-# Environment variables to use later, to make it easier to change them later ;-)
-env:
-  NUGET_PASS: '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'
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
 
     - uses: actions/checkout@v3
-
-    - run: dotnet nuget add source https://nuget.pkg.github.com/jesper-bengtson/index.json -n FP2022 -u jesper-bengtson -p $NUGET_PASS --store-password-in-clear-text
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v2
