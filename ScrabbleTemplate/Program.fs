@@ -56,16 +56,16 @@ let main argv =
 
     // Uncomment to test your dictionary
     ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test sucessful\n")
-    let incorrectWords = ScrabbleUtil.Dictionary.test words 10 (dictionary false) // change to true if using a GADDAG
+    let incorrectWords = ScrabbleUtil.Dictionary.test words 10 (dictionary true) // change to true if using a GADDAG
     match incorrectWords with
     | [] -> ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test sucessful!\n")
     | _  ->
        ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test failed for at least the following words: \n") 
        List.iter (fun str -> ScrabbleUtil.DebugPrint.debugPrint (sprintf "%s\n" str)) incorrectWords
-        
+    
     // Uncomment this line to call your client
-    let players    = [("Emma Gaddag", dictionary, EmmaGaddagBot.Scrabble.startGame)]
-    // let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
+    // let players    = [("Emma Gaddag", dictionary, EmmaGaddagBot.Scrabble.startGame)]
+    let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
         
 
     do ScrabbleServer.Comm.startGame 
