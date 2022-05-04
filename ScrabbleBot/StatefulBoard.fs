@@ -155,4 +155,15 @@ module StatefulBoard =
 
         aux 0
 
+    /////////////////////////////////////////////////////////////////////////////
+        
+    let MyFunction (word: (char*int) list) : bool =
+        true
+    // TODO adjust input to this function to fit what MyFunction actually needs
+    let playWord (coords: (int * int)) (wordOrientation: WordOrientation) (words: (char * int) list list) (SB (board, letters): StatefulBoard) : (char * int) list option =
+        words |> List.tryFind (fun word -> MyFunction(word))  //breaks when MyFunction returns true aka a word has been inserted
+
+    //Takes coordinate and checks whether it is isnide the current board
+    let isInsideBoard (coord: (int * int)) (SB (board, letters): StatefulBoard) : bool =
+        board.ContainsKey(coord)
 
