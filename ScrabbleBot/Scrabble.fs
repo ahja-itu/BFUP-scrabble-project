@@ -66,6 +66,15 @@ module Scrabble =
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
 
+            let c = State.hand st |> MultiSet.toList |> fun x -> x.[0] |> fun c -> char (c + 64u)
+
+
+            let playableWords = WordSearch.findCandidateWords c (State.hand st) (State.dict st)
+
+            debugPrint (sprintf "Playable words for beginning letter %c:\n" c)
+            for word in playableWords do
+                debugPrint (sprintf "%s\n" word)
+
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
             let input =  System.Console.ReadLine()
