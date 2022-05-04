@@ -57,7 +57,17 @@ module StatefulBoard =
     let isSquareEmpty (coords: (int * int)) (statefulBoard: StatefulBoard) : bool =
         not <| isSome (getSquare coords statefulBoard)
 
-    /// In this context, the posision is where the word starts
+    // 5/5
+    let isSquareEmptyOrMatch (c : (char * int)) (coords: (int * int)) (statefulBoard: StatefulBoard) : bool =
+        match ((getSquare coords statefulBoard)) with  
+            | None -> true
+            | Some sSquare -> sSquare.letter=c
+            
+    
+    // TODO: Add method that takes char and position or stateful square and calls e.g. determineCoordinates with right orientation                                   
+
+                     
+    /// In this context, the posision is where the word starts. Returns list of all coordinates, that would be occupied by the given word
     let determineCoordinates (word: (char * int) list) ((x, y): (int * int)) (orientation: WordOrientation) : (int * int) list =
         let aux i _ =
             match orientation with
@@ -66,12 +76,46 @@ module StatefulBoard =
         
         List.mapi aux word
 
+    // 5/5
+    // Take word, letter to match, coordinate of letter to match, orientation and return list of possible coordinates to occupy
+    let determineCoordinatesWithDuplicates (c : (char * int))(word: (char * int) list)  ((x, y): (int * int)) (orientation: WordOrientation) : (int * int) list list =
+       
+        let mapCoordinates i (i', _) =
+            match orientation with
+            | Horizontal -> ((x-i') + i, y)
+            | Vertical -> (x, (y-i') + i)
+
+        let mapLettersInWord i c' =
+            match c=c' with
+                | true -> List.map (fun c -> (i,c)) word |> List.mapi mapCoordinates
+                | false -> List.empty
+            
+        List.mapi mapLettersInWord word
+    
+
+
+    // Take word, first-letter coordinates, orientation and board into account and check wheter word could be placed here
     let determineSufficientSpace (word: (char * int) list) ((x, y) : (int * int)) (orientation: WordOrientation) (statefulBoard: StatefulBoard) : bool =
         let coords = determineCoordinates word (x, y) orientation
         // TODO: perhaps check if coordinates are within the board 
         let hasSpace = List.forall (fun (x, y) -> isSquareEmpty (x, y) statefulBoard) coords
         hasSpace
 
+    // 5/5
+    let determineSufficientSpaceOrMatch (word: (char * int) list) ((x: int, y) : (int * int)) (orientation: WordOrientation) (statefulBoard: StatefulBoard) : bool =
+        let coords = determineCoordinates word (x, y) orientation //TODO change to use determineCoordinatesWithDuplicates instead
+        
+        // TODO: perhaps check if coordinates are within the board 
+        let hasSpaceOrMatchHorizontal = List.forall (fun (x', y') -> isSquareEmptyOrMatch word[x'-x] (x', y') statefulBoard) coords
+        let hasSpaceOrMatchVertical = List.forall (fun (x', y') -> isSquareEmptyOrMatch word[y'-y] (x', y') statefulBoard) coords
+
+        match orientation with 
+            | Horizontal -> hasSpaceOrMatchHorizontal
+            | Vertical -> hasSpaceOrMatchVertical
+   
+
+
+    // Take word, first letter position,     
     let checkCollisions (word: (char * int) list) ((x, y): (int * int)) (SB (board, letters): StatefulBoard) : ((int * int) * WordOrientation) option =    
         match getSquare (x, y) (SB (board, letters)) with
         | Some statefulSquare ->
