@@ -35,6 +35,7 @@ module RegEx =
 
     let printHand pieces hand =
         hand |>
+        // x, i: letter, how many of them do we have
         MultiSet.fold (fun _ x i -> forcePrint (sprintf "%d -> (%A, %d)\n" x (Map.find x pieces) i)) ()
 
 module State = 
@@ -62,20 +63,30 @@ module Scrabble =
     open System.Threading
 
     let playGame cstream pieces (st : State.state) =
+        // Pieces is a map from a letter (represented in its index in the alphabet (1-indexed)) to its (char * int) pair
+
+
+
 
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+            let wordToPlay = 
+                Utils.handToLetters (State.hand st) |>
+                Array.Parallel.map 
+                    (fun letter -> 
+                        WordSearch.findCandidateWords letter (State.hand st) (State.dict st)
+                        |> List.fold Utils.longestStringOf "")
+                |> Array.fold Utils.longestStringOf ""
+
+            debugPrint (sprintf "Longest word to play: %s\n" wordToPlay)
             let input =  System.Console.ReadLine()
 
-            // TODO: we need to have our own logic to create moves
-            //       this needs to produce the same output as we are asked to do manually
-            //       Find word, send word as string, receive answer, if succes actually play word by updating state. 
-            //       If fail, try new word
+            // TODO: Find candidate words to play
             
-            let q = st.board.squares
+        
 
             let move = RegEx.parseMove input
 
