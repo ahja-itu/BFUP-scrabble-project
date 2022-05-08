@@ -65,28 +65,28 @@ module Scrabble =
     let playGame cstream pieces (st : State.state) =
         // Pieces is a map from a letter (represented in its index in the alphabet (1-indexed)) to its (char * int) pair
 
-
-
-
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+            
+            
+            // TODO: REmove this, or use it somewhere else. Computes the (currently) shortest word that can be made from the hand.
             let wordToPlay = 
                 Utils.handToLetters (State.hand st) |>
                 Array.Parallel.map 
                     (fun letter -> 
                         WordSearch.findCandidateWords letter (State.hand st) (State.dict st)
-                        |> List.fold Utils.longestStringOf "")
-                |> Array.fold Utils.longestStringOf ""
+                        |> List.filter (fun w -> w.Length > 1)
+                        |> List.fold Utils.shortestStringOf "")
+                |> Array.filter (fun w -> w.Length > 1)
+                |> Array.fold Utils.shortestStringOf ""
 
-            debugPrint (sprintf "Longest word to play: %s\n" wordToPlay)
+            debugPrint (sprintf "Longest word to play: %A\n" wordToPlay)
             let input =  System.Console.ReadLine()
 
             // TODO: Find candidate words to play
-            
-        
 
             let move = RegEx.parseMove input
 
@@ -109,18 +109,19 @@ module Scrabble =
                 // Update the hand from the played words
                 // Remove succefully played letter
 
-                let charToAlphaIndex (c: char) : uint32 =
-                    (uint32 c) - 64u
-
+                // Define the function used in the foolowing fold to remove the played letters from the hand
                 let removeSingleLetter hand' (_, (_, (letter, _))) =
-                    MultiSet.removeSingle (charToAlphaIndex letter) hand'
+                    MultiSet.removeSingle (Utils.letterToNumber letter) hand'
 
-                let hand' = List.fold removeSingleLetter (State.hand st) move
-                debugPrint (sprintf "Received new pieces: %A\n" newPieces)
+                // Actually remove the letters from the hand, produce a new version of the hand
+                let hand' = 
+                    List.fold removeSingleLetter (State.hand st) move
 
-                // Recive letters and update hand
+                // Add the letters that were given from the server
+                let hand'' = List.fold (fun handy (letter, count) -> MultiSet.add letter count handy) hand' newPieces
                 
-                let st' = {st with hand = hand'}   // This state needs to be updated, (hand, board, turn)
+                // Update the state with the finalized hand
+                let st' = {st with hand = hand''}
 
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->

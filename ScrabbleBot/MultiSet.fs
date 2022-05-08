@@ -18,7 +18,11 @@
     
     let remove a n mms =
         numItems a mms
-        |> (fun count -> (unpack mms).Add (a, (safeDecrease count n)))
+        |> (fun count ->
+            let newVal = safeDecrease count n
+            in if newVal = 0u 
+               then (unpack mms).Remove(a) 
+               else (unpack mms).Add (a, (newVal)))
         |> MS
         
     let removeSingle a mms = remove a 1u mms

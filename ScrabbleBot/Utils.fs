@@ -10,7 +10,7 @@ module internal Utils =
     let letterToNumber : char -> uint32 =
         fun c -> (uint32 c) - 64u
 
-    let longestStringOf a b =
+    let shortestStringOf a b =
                 if String.length a < String.length b then b else a
     
     let handToLetters : MultiSet.MultiSet<uint32> -> char array =
@@ -30,7 +30,3 @@ module internal Utils =
         | _ -> failwith "Letter looked up was outside of the alphabet (this should not happen!)"
         |> fun p -> (letter, p)
 
-
-
-    let wordToPlayableCommand (word: string) : (string * int) list =
-        Seq.toList word |> List.map string |> List.map pairLetterWithPoint
