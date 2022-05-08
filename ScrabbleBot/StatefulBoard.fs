@@ -57,6 +57,11 @@ module StatefulBoard =
     let isSquareEmpty (coords: (int * int)) (statefulBoard: StatefulBoard) : bool =
         not <| isSome (getSquare coords statefulBoard)*)
 
+    //Takes coordinate and checks whether it is isnide the current board
+    let isInsideBoard (coord: (int * int)) (SB (board, letters): StatefulBoard) : bool =
+        board.ContainsKey(coord)
+
+
     // 5/5
     let isSquareEmptyOrMatch (c : (char * int)) (coords: (int * int)) (statefulBoard: StatefulBoard) : bool =
         match ((getSquare coords statefulBoard)) with  
@@ -115,7 +120,7 @@ module StatefulBoard =
     
     //Takes the char from the board, the word that should match, the coordinates for the char, orientation, statefulBoard.
     //Returns the coordinates for a valid word with a valid position
-    let validWord (c: (char * int)) (word: (char * int) list) ((x,y): (int * int)) (orientation: WordOrientation) (statefulBoard: StatefulBoard): (int*int) list =
+    let validWord (c: (char * int)) (word: (char * int) list) ((x,y): (int * int)) (orientation: WordOrientation) (statefulBoard: StatefulBoard): ((char*int) list * (int*int) list) option=
         let listNotEmpty (l: 'a list) : bool = if l = [] then false else true
         let coordsLists : ((int * int) list) list = 
             determineCoordinatesWithDuplicates c word (x,y) orientation
@@ -125,10 +130,12 @@ module StatefulBoard =
         let collisionPred =
             fun l -> (determineSufficientSpaceOrMatch word (x,y) orientation statefulBoard l)
         
-        notEmptyCoordsLists |> List.tryFind (fun elm -> collisionPred elm = true) |> unwrapSome
-
+        let coordsList = notEmptyCoordsLists |> List.tryFind (fun elm -> collisionPred elm = true)
+        match coordsList with
+            | Some(cl) -> Some(word, cl)
+            | _ -> None
         
-
+        
 
     // Take word, first letter position,     
     let checkCollisions (word: (char * int) list) ((x, y): (int * int)) (SB (board, letters): StatefulBoard) : ((int * int) * WordOrientation) option =    
@@ -171,14 +178,29 @@ module StatefulBoard =
         aux 0
 
     /////////////////////////////////////////////////////////////////////////////
+    
         
-    let MyFunction (word: (char*int) list) : bool =
-        true
     // TODO adjust input to this function to fit what MyFunction actually needs
-    let playWord (coords: (int * int)) (wordOrientation: WordOrientation) (words: (char * int) list list) (SB (board, letters): StatefulBoard) : (char * int) list option =
-        words |> List.tryFind (fun word -> MyFunction(word))  //breaks when MyFunction returns true aka a word has been inserted
+    let playWord (c : char * int)(coords: (int * int)) (wordOrientation: WordOrientation) (words: (char * int) list list) (SB (board, letters): StatefulBoard) : (Result<StatefulBoard, GameplayError> * (char *int) list * (int * int) list) =
+        let foundWords = List.map (fun word -> (validWord c word coords wordOrientation (SB (board, letters)))) words//breaks when MyFunction returns true aka a word has been inserted
+        let firstFoundWord = List.tryFind (fun foundWord -> isSome(foundWord)) foundWords //Why is foundWord here not wrapped in option? foundWords is list of options
+        let insertResult = insertWord (snd unwrapSome(unwrapSome(firstFoundWord))[0]) wordOrientation firstFoundWord SB(board, letters)
+        (insertResult, firstFoundWord)
 
-    //Takes coordinate and checks whether it is isnide the current board
-    let isInsideBoard (coord: (int * int)) (SB (board, letters): StatefulBoard) : bool =
-        board.ContainsKey(coord)
+
+    let playValidWord (c: (char * int)) (words: (char * int) list list) ((x,y): (int * int)) (orientation: WordOrientation) (statefulBoard: StatefulBoard): (int*int) list option=
+        List.tryFind (fun word -> 
+        
+        
+        
+        let listNotEmpty (l: 'a list) : bool = if l = [] then false else true
+        let coordsLists = 
+            List.map (fun word -> determineCoordinatesWithDuplicates c word (x,y) orientation) words
+        
+        let notEmptyCoordsLists = List.filter listNotEmpty coordsLists
+
+        let collisionPred =
+            fun l -> (determineSufficientSpaceOrMatch word (x,y) orientation statefulBoard l)
+        
+        notEmptyCoordsLists |> List.tryFind (fun elm -> collisionPred elm = true) 
 

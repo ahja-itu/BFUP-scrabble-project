@@ -65,8 +65,12 @@ module internal WordSearch =
                 // The edge long char 'c' does not lead to a new node
                 foundWords
 
-    let findCandidateWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) : string list
+    //let findCandidateWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) : string list
+    //    = traverseDictForWords c hand dict [] (new HashSet<char list>())
+    //      |> fun words -> [for word in words -> toCorrectWord word]
+          
+
+    let findCandidateWords (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (c :char): string list
         = traverseDictForWords c hand dict [] (new HashSet<char list>())
           |> fun words -> [for word in words -> toCorrectWord word]
-          
-          
+        

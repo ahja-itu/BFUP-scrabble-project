@@ -29,6 +29,7 @@ module StatefulBoard =
 
     val insertWord : (int * int) -> WordOrientation -> (char * int) list -> StatefulBoard -> Result<StatefulBoard, GameplayError> // x,y starting coordinate -> horisontal/vertical -> current borad -> updated board
     
+    val playWord : (int * int) -> WordOrientation -> words: (char * int) list list -> StatefulBoard -> (Result<StatefulBoard, GameplayError> * (char *int) list * (int * int) list)
 
 
     (*
