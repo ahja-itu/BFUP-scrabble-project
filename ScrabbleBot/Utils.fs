@@ -3,6 +3,8 @@ namespace EmmaGaddagBot
 module internal Utils =
 
     open MultiSet
+    open ScrabbleUtil
+    open StatefulBoard
 
     let numberToLetter : uint32 -> char =
         fun (n: uint32) -> char (n + 64u)
@@ -10,7 +12,7 @@ module internal Utils =
     let letterToNumber : char -> uint32 =
         fun c -> (uint32 c) - 64u
 
-    let longestStringOf a b =
+    let shortestStringOf a b =
                 if String.length a < String.length b then b else a
     
     let handToLetters : MultiSet.MultiSet<uint32> -> char array =
@@ -30,7 +32,9 @@ module internal Utils =
         | _ -> failwith "Letter looked up was outside of the alphabet (this should not happen!)"
         |> fun p -> (letter, p)
 
+    let determineDirectionOfPlayedWord (ms: (coord * (uint32 * (char * int))) list) : StatefulBoard.WordOrientation =
+        match ms.[0], ms.[1] with
+        | ((x1, _), _), ((x2, _), _) ->
+            if x1 = x2 then Vertical else Horizontal
 
-
-    let wordToPlayableCommand (word: string) : (string * int) list =
-        Seq.toList word |> List.map string |> List.map pairLetterWithPoint
+        

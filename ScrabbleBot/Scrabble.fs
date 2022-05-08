@@ -74,13 +74,16 @@ module Scrabble =
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+            
+            
+            // TODO: REmove this, or use it somewhere else. Computes the (currently) shortest word that can be made from the hand.
             let wordToPlay = 
                 Utils.handToLetters (State.hand st) |>
                 Array.Parallel.map 
                     (fun letter -> 
                         WordSearch.findCandidateWords (State.hand st) (State.dict st) letter
-                        |> List.fold Utils.longestStringOf "")
-                |> Array.fold Utils.longestStringOf ""
+                        |> List.fold Utils.shortestStringOf "")
+                |> Array.fold Utils.shortestStringOf ""
 
             debugPrint (sprintf "Longest word to play: %s\n" wordToPlay)
             
@@ -101,15 +104,15 @@ module Scrabble =
 
             let generateInput1 ((tile, coord) : (char*int)*(int * int)) : string =
                 let builder = System.Text.StringBuilder()
-                builder.Append("(")                                     |> ignore
+                builder.Append("(")                              |> ignore
                 builder.Append(fst coord)                        |> ignore
-                builder.Append(" ")                                      |> ignore
+                builder.Append(" ")                              |> ignore
                 builder.Append(snd coord)                        |> ignore
-                builder.Append(" ")                                      |> ignore
+                builder.Append(" ")                              |> ignore
                 builder.Append(Utils.letterToNumber (fst tile))  |> ignore
                 builder.Append(fst tile)                         |> ignore
                 builder.Append(snd tile )                        |> ignore
-                builder.Append(")")                                      |> ignore
+                builder.Append(")")                              |> ignore
             
                 builder.ToString()
 
@@ -159,18 +162,19 @@ module Scrabble =
                 // Update the hand from the played words
                 // Remove succefully played letter
 
-                let charToAlphaIndex (c: char) : uint32 =
-                    (uint32 c) - 64u
-
+                // Define the function used in the foolowing fold to remove the played letters from the hand
                 let removeSingleLetter hand' (_, (_, (letter, _))) =
-                    MultiSet.removeSingle (charToAlphaIndex letter) hand'
+                    MultiSet.removeSingle (Utils.letterToNumber letter) hand'
 
-                let hand' = List.fold removeSingleLetter (State.hand st) 
-                debugPrint (sprintf "Received new pieces: %A\n" newPieces)
+                // Actually remove the letters from the hand, produce a new version of the hand
+                let hand' = 
+                    List.fold removeSingleLetter (State.hand st) ms
 
-                // Recive letters and update hand
+                // Add the letters that were given from the server
+                let hand'' = List.fold (fun handy (letter, count) -> MultiSet.add letter count handy) hand' newPieces
                 
-                let st' = {st with hand = hand'}   // This state needs to be updated, (hand, board, turn)
+                // Update the state with the finalized hand
+                let st' = {st with hand = hand''}
 
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
