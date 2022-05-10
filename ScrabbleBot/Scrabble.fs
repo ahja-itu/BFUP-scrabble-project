@@ -1,5 +1,6 @@
 ﻿namespace EmmaGaddagBot
 
+open Parser
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
 
@@ -38,6 +39,8 @@ module RegEx =
         // x, i: letter, how many of them do we have
         MultiSet.fold (fun _ x i -> forcePrint (sprintf "%d -> (%A, %d)\n" x (Map.find x pieces) i)) ()
 
+ 
+
 module State = 
     // Make sure to keep your state localised in this module. It makes your life a whole lot easier.
     // Currently, it only keeps track of your hand, your player numer, your board, and your dictionary,
@@ -51,7 +54,7 @@ module State =
         consecutivePasses   : uint32
         statefulBoard       : StatefulBoard
     }
-
+    
     let mkState b d pn h cp sb = {board = b; dict = d;  playerNumber = pn; hand = h; consecutivePasses = cp; statefulBoard = sb } 
 
     let board st            = st.board
@@ -73,94 +76,105 @@ module Scrabble =
             Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
-            forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+            // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
             
             
-            // TODO: REmove this, or use it somewhere else. Computes the (currently) shortest word that can be made from the hand.
-            let wordToPlay = 
-                Utils.handToLetters (State.hand st) |>
-                Array.Parallel.map 
-                    (fun letter -> 
-                        WordSearch.findCandidateWords (State.hand st) (State.dict st) letter
-                        |> List.fold Utils.shortestStringOf "")
-                |> Array.fold Utils.shortestStringOf ""
-
-            debugPrint (sprintf "Longest word to play: %s\n" wordToPlay)
+            debugPrint "#################\nPrinting statefulboard content:\n"
+            for (c, lst) in StatefulBoard.getPlacedTilesAndPositons st.statefulBoard do
+                debugPrint (sprintf "Character %c is located here:\n" c)
+                for (x, y) in lst do
+                    debugPrint (sprintf "(%i, %i)\n" x y)
+            debugPrint "##################\n\n\n"
+            
+            // Determine whether or not we're at turn 1
+            let isFirstRound =
+                match getSquare (0, 0) st.statefulBoard with
+                | Some sq -> false
+                | _ -> true
+                
+            debugPrint (sprintf "Is this the first round? %b\n" isFirstRound)
+            
+            // Lets try to determine where we would want to put some words
             
 
-            //Generate input
-            let lettersOnBoard = StatefulBoard.getPlacedTilesAndPositons 
-            let letter = 'e' // TODO: Change this to actual statefulTile from StatefulBoard
-            let letterPosition = (3,4)
-            let letterOrientation = Horizontal
-            let candidateWords = letter |> WordSearch.findCandidateWords (State.hand st) (State.dict st) 
-
-            let candidateWordsAsTiles = List.map (fun candidateWord -> candidateWord |> Seq.map (fun c -> (c, snd (Utils.pairLetterWithPoint (string c)))) |> Seq.toList) candidateWords
-
-
-            let wordToPlayResult = playWord letterPosition letterOrientation candidateWordsAsTiles (State.statefulBoard st)
-            let (result, word, position) = wordToPlayResult
-            let wordToPlay3 = Some(word, position)
-
-            let generateInput1 ((tile, coord) : (char*int)*(int * int)) : string =
-                let builder = System.Text.StringBuilder()
-                builder.Append("(")                              |> ignore
-                builder.Append(fst coord)                        |> ignore
-                builder.Append(" ")                              |> ignore
-                builder.Append(snd coord)                        |> ignore
-                builder.Append(" ")                              |> ignore
-                builder.Append(Utils.letterToNumber (fst tile))  |> ignore
-                builder.Append(fst tile)                         |> ignore
-                builder.Append(snd tile )                        |> ignore
-                builder.Append(")")                              |> ignore
+            let lettersInHand = Utils.handToLetters st.hand
+           
+            // IF were on round one, then we can create any word from our hand, otherwise we have to work with the board 
+            let playableLetters =
+                if not isFirstRound then 
+                    StatefulBoard.getPlacedTilesAndPositons st.statefulBoard
+                    |> List.filter (fun (c, _) -> Array.contains c lettersInHand)
+                else
+                    lettersInHand |> Array.toList |> List.map (fun e -> (e, [(0, 0)]))
+            debugPrint (sprintf "Determining playable letters: %A\n" playableLetters)
             
-                builder.ToString()
+            let longestPossibleWord =
+                Array.Parallel.map (WordSearch.findCandidateWords (State.hand st) (State.dict st)) lettersInHand
+                |> Array.toList
+                |> List.fold (@) []
+                |> List.fold (fun acc word -> if String.length acc < String.length word then word else acc) ""
+                
+            debugPrint (sprintf "Longest possible word to play: %A\n" longestPossibleWord)
+            if longestPossibleWord = "" then
+                send cstream (SMPlay [])
+            else do
+                let word = longestPossibleWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
+                debugPrint (sprintf "Constructed word to play: %A\n" word)
+                
+                // Filter playable letters by the letters of the word
+                
+                let playableLetters' = List.filter (fun (c, _) -> String.exists (fun c' -> c = c') longestPossibleWord) playableLetters                
 
-            let generateInput (word: (char * int) list) (position: (int * int) list): string =
-                let wordPosition = List.zip word position 
-                let inputList = List.map (fun wp -> generateInput1 wp) wordPosition
-                //let inputList = Seq.map (fun c -> (generateInput1 c (0,0))) word |> Seq.toList
-                String.concat " " inputList
+                let isNotBothWordDirections coords =
+                    match getSquare coords st.statefulBoard with
+                    | Some sq -> not (sq.orientation = Both)
+                    | _ -> true
+                    
+                let getOppositeDirection coords =
+                    match getSquare coords st.statefulBoard with
+                    | Some sq -> StatefulBoard.oppositeOrientation sq.orientation
+                    | _ -> Horizontal
+                
+                let rec findFirstPossibleWordPlay playableLetters' =
+                    match playableLetters' with
+                    | [] -> debugPrint "fuck shit"; failwith "lol"
+                    | (c, lst) :: cs ->
+                        debugPrint (sprintf "Considering plays for %c\n" c)
+                        let r = lst |> List.filter (isNotBothWordDirections)
+                                    |> List.map (fun e ->
+                                         StatefulBoard.possibleWordPlacements e word (getOppositeDirection e) st.statefulBoard st.board.squares)
+                        
+                        let candidate = List.tryFind (fun e ->
+                            match e with
+                            | Some lst -> true
+                            | _ -> false) r
+                        
+                        match candidate with
+                        | Some s -> match s with
+                                    | Some q -> List.head q
+                                    | None -> findFirstPossibleWordPlay cs
+                        | None -> findFirstPossibleWordPlay cs
 
-            let moveToPlay wtp: ServerMessage =
-                match wtp with
-                    | None _ -> SMPass // TODO check that sending this and receiving answer clientMessage is handled
-                    | Some (wordPlayed, wordPosition) ->         
-                        let input = generateInput wordPlayed wordPosition
-                        let move = RegEx.parseMove input
-                        debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) 
-                        SMPlay move
-
-            send cstream (moveToPlay wordToPlay3)
-
-            //Move to utils or StatefulBoard? Needs the WordOrientation enum
-
-            //let wordToPlay2 = playWord(WordSearch.StatefulBoard.getPlacedTilesAndPositons (State.hand st) (State.dict st))
-
-            //let input =  System.Console.ReadLine()
-
-            // TODO: Find candidate words to play
-            
-            //let move = RegEx.parseMove input
-
-            //debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            //send cstream (SMPlay move) 
+                debugPrint "Going to find first possible word play\n"
+                let playPayload = findFirstPossibleWordPlay playableLetters
+                
+                debugPrint (sprintf "playPayload: %A\n" playPayload)
+                
+                debugPrint "Constucting mov e\n"
+                //        this is the characters that gets connected to their id    this is connecting the coords before the characters
+                let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) word |> List.zip playPayload.coordinates 
+                debugPrint (sprintf "The move is: %A\n" move)
+                
+                debugPrint "Sending move to server\n"
+                send cstream (SMPlay move)
 
             let msg = recv cstream
             //debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
+                debugPrint "CMPlaySuccess!!!\n"
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-
-                // Update the board from the played words
-                // Fra move kender vi hvad der er blevet spillet. 
-                // let boardTemp = st'.board
-                // let updateBoard (b: State.board) = 
-                
-            
-                // Update the hand from the played words
-                // Remove succefully played letter
 
                 // Define the function used in the foolowing fold to remove the played letters from the hand
                 let removeSingleLetter hand' (_, (_, (letter, _))) =
@@ -171,32 +185,56 @@ module Scrabble =
                     List.fold removeSingleLetter (State.hand st) ms
 
                 // Add the letters that were given from the server
+                debugPrint "Updating hand\n"
                 let hand'' = List.fold (fun handy (letter, count) -> MultiSet.add letter count handy) hand' newPieces
                 
+                // The play from earlier was successful, so we can update the board
+                debugPrint "Updating stateful board"
+                
+                let (coords, charinfo) = List.unzip ms
+                let (_, word) = List.unzip charinfo
+                let orientation = Utils.determineDirectionOfPlayedWord ms
+                
+                
+                let sb' = StatefulBoard.insertWord word coords orientation st.statefulBoard
+                
+                debugPrint "Creating new state"
                 // Update the state with the finalized hand
-                let st' = {st with hand = hand''}
+                let st' = {st with hand = hand''; statefulBoard = sb'}
 
+                debugPrint "Returning from CMPlaySuccess"
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
+                debugPrint "CMPlayed\n"
                 (* Successful play by other player. Update your state *)
                 let (coords, tiles) = List.unzip ms
                 let (tileIDs, word) = List.unzip tiles
-                let insertResult = StatefulBoard.insertWord coords[0] (getOrientation coords) word st.statefulBoard  
+                // TODO: FIX
+                // let insertResult = StatefulBoard.insertWord coords[0] (getOrientation coords) word st.statefulBoard  
                 
 
                 let st' = st // This state needs to be updated, only board (and possibly player number/turn)
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
+                debugPrint "CMPlayFailed\n"
                 (* Failed play. Update your state *)
                 let st' = st // This state needs to be updated  
                 aux st'
             | RCM (CMPassed _) -> // TODO keep track of consecutive passes, if 3 end game
+                debugPrint "CMPassed\n"
+
                 let st' = {st with consecutivePasses = st.consecutivePasses+1u}
                 if st'.consecutivePasses>=3u then () //Game over
                                              else aux st'
-            | RCM (CMGameOver _) -> ()
-            | RCM a -> failwith (sprintf "not implmented: %A" a)
-            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
+            | RCM (CMGameOver _) ->
+                debugPrint "CMGameOver\n"
+                ()
+            | RCM a ->
+                debugPrint (sprintf "%A\n" a)
+                failwith (sprintf "not implmented: %A" a)
+            | RGPE err ->
+                debugPrint (sprintf "RGPE err: %A\n" err)
+                printfn "Gameplay Error:\n%A" err; aux st
 
         aux st
 

@@ -1,17 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
-
   <ItemGroup>
-    <Compile Include="StatefulBoard.fsi" />
-    <Compile Include="StatefulBoard.fs" />
     <Compile Include="MultiSet.fsi" />
     <Compile Include="MultiSet.fs" />
-    <Compile Include="Utils.fs" />
-    <Compile Include="WordSearch.fsi" />
-    <Compile Include="WordSearch.fs" />
     <Compile Include="FParsecLight.fsi" />
     <Compile Include="FParsecLight.fs" />
     <Compile Include="StateMonad.fsi" />
@@ -19,19 +12,22 @@
     <Compile Include="Eval.fs" />
     <Compile Include="Parser.fsi" />
     <Compile Include="Parser.fs" />
+    
+    <Compile Include="StatefulBoard.fsi" />
+    <Compile Include="StatefulBoard.fs" />
+    <Compile Include="Utils.fs" />
+    <Compile Include="WordSearch.fsi" />
+    <Compile Include="WordSearch.fs" />
     <Compile Include="Scrabble.fsi" />
     <Compile Include="Scrabble.fs" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="FParsec" Version="1.1.1" />
     <PackageReference Update="FSharp.Core" Version="6.0.3" />
   </ItemGroup>
-
   <ItemGroup>
     <Reference Include="ScrabbleUtil, Version=1.0.12.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>..\dlls\ScrabbleUtil.dll</HintPath>
     </Reference>
   </ItemGroup>
-
 </Project>

@@ -41,7 +41,7 @@ module internal WordSearch =
         fun word ->
             List.findIndex ((=) (char 0)) word 
             |> (fun i -> (List.take i word |> List.rev) @ (List.skip (i + 1) word))
-            |> (fun s -> List.toSeq s |> string)
+            |> (fun s -> List.map string s |> List.fold (+) "")
 
     let rec traverseDictForWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (currentWord : char list) (foundWords: HashSet<char list>) : HashSet<char list> =
         match size hand with
