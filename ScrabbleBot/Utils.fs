@@ -11,7 +11,10 @@ module internal Utils =
         fun (n: uint32) -> char (n + 64u)
     
     let letterToNumber : char -> uint32 =
-        fun c -> (uint32 c) - 64u
+        fun c ->
+            let res = (uint32 c) - 64u
+            DebugPrint.debugPrint (sprintf "Converted %A to %A\n" c res)
+            res
 
     let shortestStringOf a b =
                 if String.length a < String.length b then b else a

@@ -145,9 +145,9 @@ module internal StatefulBoard =
                 let indicesToKeep = 
                     [0..List.length word]
                     |> List.filter (fun e -> List.contains e posToRemove)
-                List.mapi (fun a b -> if List.contains a indicesToKeep then Some b else None) word
+                List.mapi (fun a b -> if List.contains a indicesToKeep then None else Some b) word
                 |> List.filter isSome
-                |> List.map (unwrapSome)
+                |> List.map unwrapSome
                 
                 
             let maybeChar = // Some 'a'

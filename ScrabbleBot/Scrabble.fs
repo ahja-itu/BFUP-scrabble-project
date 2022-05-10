@@ -137,11 +137,12 @@ module Scrabble =
                 
                 let rec findFirstPossibleWordPlay playableLetters' =
                     match playableLetters' with
-                    | [] -> debugPrint "fuck shit"; failwith "lol"
+                    | [] -> None
                     | (c, lst) :: cs ->
                         debugPrint (sprintf "Considering plays for %c\n" c)
                         let r = lst |> List.filter (isNotBothWordDirections)
                                     |> List.map (fun e ->
+                                         debugPrint (sprintf "Mapping coordinates: %A -> %A\n" c e)
                                          StatefulBoard.possibleWordPlacements e word (getOppositeDirection e) st.statefulBoard st.board.squares)
                         
                         let candidate = List.tryFind (fun e ->
@@ -149,25 +150,33 @@ module Scrabble =
                             | Some lst -> true
                             | _ -> false) r
                         
+                        debugPrint (sprintf "Try finding candidate: %A\n" candidate)
+                        
                         match candidate with
                         | Some s -> match s with
-                                    | Some q -> List.head q
+                                    | Some q ->
+                                        match q with
+                                        | [] -> findFirstPossibleWordPlay cs
+                                        | _ -> Some (List.head q) 
+                                        
                                     | None -> findFirstPossibleWordPlay cs
                         | None -> findFirstPossibleWordPlay cs
 
                 debugPrint "Going to find first possible word play\n"
                 let playPayload = findFirstPossibleWordPlay playableLetters
-                
-                debugPrint (sprintf "playPayload: %A\n" playPayload)
-                
-                debugPrint "Constucting mov e\n"
-                //        this is the characters that gets connected to their id    this is connecting the coords before the characters
-                let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) word |> List.zip playPayload.coordinates 
-                debugPrint (sprintf "The move is: %A\n" move)
-                
-                debugPrint "Sending move to server\n"
-                send cstream (SMPlay move)
+                match playPayload with
+                | Some payload ->
+                    debugPrint (sprintf "playPayload: %A\n" playPayload)                
+                    debugPrint "Constucting move\n"
+                    //        this is the characters that gets connected to their id    this is connecting the coords before the characters
+                    let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) word |> List.zip payload.coordinates
+                    debugPrint (sprintf "The move is: %A\n" move)
+                    debugPrint "Sending move to server\n"
+                    send cstream (SMPlay move)
 
+                | None -> send cstream (SMPlay [])
+                
+                
             let msg = recv cstream
             //debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
