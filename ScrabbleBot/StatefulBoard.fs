@@ -3,13 +3,8 @@ namespace EmmaGaddagBot
 
 open System.Collections.Generic
 open Parser
-open ScrabbleUtil
-
-
+open ScrabbleUtil.Dictionary
 module internal StatefulBoard =
-
-    open System.Collections.Generic
-    open ScrabbleUtil.ServerCommunication
 
     type WordOrientation = Horizontal | Vertical | Both
     type StatefulSquare = {
@@ -86,27 +81,25 @@ module internal StatefulBoard =
             // DebugPrint.debugPrint (sprintf "Failed isSquareAviable with %A\n" q)
             false
             
-    let determineSufficientSpaceOrthogonalTo : int * int -> StatefulBoard -> bool
+    let hasSufficientSpaceAround : int * int -> StatefulBoard -> bool
         = fun (x, y) sb ->
             
             // If there is any tiles placed orthogonal to the word, then we don't want to place the word,
             // this is the "easy" solution instead of checking to see if they create valid words
             
             let surroundingSquares = [(x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y)]
-            
+            //      x
+            //   x  o  x
+            //      x
                         
             // Go though the neighboring orthogonally placed squares
             // Should there be placed squares they will be of type Some square
             // we will then verify that there were none
-            let res =
-                List.map (fun coord -> getSquare coord sb) surroundingSquares
-                |> List.forall (not << isSome)
             
-            if res = false then
-                res 
-            else
-                res
-
+            List.map (fun coord -> getSquare coord sb) surroundingSquares
+            |> List.forall (not << isSome)
+            
+            
     let isSquarePlaceable (coords: (int * int)) (statefulBoard: StatefulBoard) (squares: boardFun2) : bool =
         // A square is "placeable" if it is a valid square in the board program, it doesn't have any tiles on it
         // in our own stateful board
@@ -114,18 +107,50 @@ module internal StatefulBoard =
             | None -> true
             | _ -> false
         |> (&&) (isSquareAvailable coords squares)
-        |> (&&) (determineSufficientSpaceOrthogonalTo coords statefulBoard)
+        |> (&&) (hasSufficientSpaceAround coords statefulBoard)
     
-    let allowNeightboringPositions : int * int -> int * int -> StatefulBoard -> bool
-        = fun (x, y) (x', y') sb ->
+    let isSingleSquarePlacable (coords: (int * int)) (statefulBoard: StatefulBoard) (squares: boardFun2) : bool =
+        // A square is "placeable" if it is a valid square in the board program, it doesn't have any tiles on it
+        // in our own stateful board
+        match ((getSquare coords statefulBoard)) with  
+            | None -> true
+            | _ -> false
+        |> (&&) (isSquareAvailable coords squares)
+    
+    let allowNeightboringPositions : int * int -> int * int -> StatefulBoard -> boardFun2 -> bool
+        = fun (x, y) (x', y') sb squares ->
             let (a, b) = (x - x', y - y')
             let domain = [-1; 1]
             
             // TODO få squares adgang her til
-            (List.contains a domain <> List.contains b domain) && isSquareAvailable coords squares
-                     
+            
+            let coordsToCheck = [(x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y)]
+                                |> List.filter (fun c -> not (c = (x, y)))
+            
+            
+            
+            (List.contains a domain <> List.contains b domain) && List.forall (fun coord -> isSingleSquarePlacable coord sb squares) coordsToCheck
+    
+    
+    let wordToString : (char * int) list -> string
+        = fun word -> List.map fst word |> List.map string |> List.fold (+) ""
+    
+    let preventExtensionsOfPreplacedWord : int * int -> (int * int) list -> WordOrientation -> StatefulBoard -> bool 
+        = fun (x, y) coords orientation sb ->
+            
+            // We have the coordinates to the "root" point where we are wanting to put the next word
+            // Now we want to make sure that we're not extending the word into something that is not
+            // a proper word in the games dictionary
+    
+            match getSquare (x, y) sb with
+            | Some sq' ->
+                
+                true
+                
+            | None -> true 
+            
     // Take word, letter to match, coordinate of letter to match, orientation and return list of possible coordinates to occupy
-    let determineCoordinatesWithDuplicates (c : char) (word: (char * int) list) ((x, y): (int * int)) (orientation: WordOrientation) (sb: StatefulBoard) (squares: boardFun2) : (int * int) list list =    
+    let determineCoordinatesWithDuplicates (c : char) (word: (char * int) list) ((x, y): (int * int)) (orientation: WordOrientation) (sb: StatefulBoard) (squares: boardFun2): (int * int) list list =    
         let mapCoordinates orientation' i (i', _) =
             match orientation' with
             | Horizontal -> ((x-i') + i, y)
@@ -150,8 +175,10 @@ module internal StatefulBoard =
         |> List.filter (fun coords ->
             List.filter (fun coord -> (x, y) <> coord) coords // only consider coordinates that are not where the "root" of the word is
             |> List.forall (fun coordSet ->
-                isSquarePlaceable coordSet sb squares ||
-                allowNeightboringPositions (x, y) coordSet sb)) // If all remaining coordinates are free to have tiles placed there, then its good
+                // also prevent extensions of worrds
+                //preventExtensionsOfPreplacedWord (x, y) [] orientation sb &&
+                (isSquarePlaceable coordSet sb squares || 
+                allowNeightboringPositions (x, y) coordSet sb squares))) // If all remaining coordinates are free to have tiles placed there, then its good
     
     
 //    let determineSufficientSpaceOrMatch (word: (char * int) list) ((x, y) : (int * int)) (orientation: WordOrientation) (statefulBoard: StatefulBoard) (squares : boardFun2) (coords: (int * int) list) : bool =
@@ -223,6 +250,15 @@ module internal StatefulBoard =
                     | true, placedLetter ->
                         // DebugPrint.debugPrint (sprintf "Board had something placed at %A\n" c)
                         board'.Add(c, {letter = l; word = word; pos = pos; orientation = Both})
+                        
+                        let coordList = 
+                            match letters'.TryGetValue(fst l) with
+                            | true, list -> list
+                            | false, _ -> []
+
+                        ignore <| if letters'.ContainsKey(fst l) then letters'.Remove(fst l) else false  
+                        letters'.Add(fst l, coordList)
+                        
                         aux (pos + 1) board' letters' ls cs
                     | false, _ ->
                         // DebugPrint.debugPrint (sprintf "Board didnt contain any thing at %A\n" c)
