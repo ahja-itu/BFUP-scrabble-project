@@ -11,10 +11,7 @@ module internal Utils =
         fun (n: uint32) -> char (n + 64u)
     
     let letterToNumber : char -> uint32 =
-        fun c ->
-            let res = (uint32 c) - 64u
-            DebugPrint.debugPrint (sprintf "Converted %A to %A\n" c res)
-            res
+        fun c -> (uint32 c) - 64u
 
     let shortestStringOf a b =
                 if String.length a < String.length b then b else a
@@ -24,7 +21,6 @@ module internal Utils =
             MultiSet.toList hand |> List.map numberToLetter |> List.toArray
 
     let pairLetterWithPoint (letter: char) : (char * int)  =
-        DebugPrint.debugPrint (sprintf "Pairing point for letter: %A\n" letter)
         match letter with
         | 'A'|'E'| 'I'| 'O'| 'U'| 'L'| 'N'| 'S'| 'T'| 'R' -> 1
         | 'D'| 'G' -> 2

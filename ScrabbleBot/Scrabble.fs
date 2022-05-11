@@ -88,7 +88,7 @@ module Scrabble =
             
             // Determine whether or not we're at turn 1
             let isFirstRound =
-                match getSquare (0, 0) st.statefulBoard with
+                match getSquare st.board.center st.statefulBoard with
                 | Some sq -> false
                 | _ -> true
                 
@@ -99,31 +99,23 @@ module Scrabble =
 
             let lettersInHand = Utils.handToLetters st.hand
            
-            // IF were on round one, then we can create any word from our hand, otherwise we have to work with the board 
+            // TODO: Attempting to determine the playable letters is not working as intended
+            // maybe create a temporary "fake" hand, that also contains the playableLetters on the board
             let playableLetters =
                 if not isFirstRound then 
                     StatefulBoard.getPlacedTilesAndPositons st.statefulBoard
-                    |> List.filter (fun (c, _) -> Array.contains c lettersInHand)
                 else
-                    lettersInHand |> Array.toList |> List.map (fun e -> (e, [(0, 0)]))
+                    lettersInHand |> Array.toList |> List.map (fun e -> (e, [st.board.center]))
             debugPrint (sprintf "Determining playable letters: %A\n" playableLetters)
             
-            let longestPossibleWord =
-                Array.Parallel.map (WordSearch.findCandidateWords (State.hand st) (State.dict st)) lettersInHand
-                |> Array.toList
-                |> List.fold (@) []
-                |> List.fold (fun acc word -> if String.length acc < String.length word then word else acc) ""
-                
-            debugPrint (sprintf "Longest possible word to play: %A\n" longestPossibleWord)
-            if longestPossibleWord = "" then
-                send cstream (SMPlay [])
-            else do
-                let word = longestPossibleWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
+            let playFromWord (candidateWord: string) : ((int * int) * (uint32 * (char * 'c))) list = 
+                debugPrint (sprintf "candidate word to play: %A\n" candidateWord)
+                let word = candidateWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
                 debugPrint (sprintf "Constructed word to play: %A\n" word)
                 
                 // Filter playable letters by the letters of the word
                 
-                let playableLetters' = List.filter (fun (c, _) -> String.exists (fun c' -> c = c') longestPossibleWord) playableLetters                
+                let playableLetters' = List.filter (fun (c, _) -> String.exists (fun c' -> c = c') candidateWord) playableLetters                
 
                 let isNotBothWordDirections coords =
                     match getSquare coords st.statefulBoard with
@@ -167,15 +159,43 @@ module Scrabble =
                 match playPayload with
                 | Some payload ->
                     debugPrint (sprintf "playPayload: %A\n" playPayload)                
-                    debugPrint "Constucting move\n"
+                    debugPrint (sprintf "Constucting move on word: %A, coords: %A\n" payload.word payload.coordinates)  
                     //        this is the characters that gets connected to their id    this is connecting the coords before the characters
-                    let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) word |> List.zip payload.coordinates
-                    debugPrint (sprintf "The move is: %A\n" move)
-                    debugPrint "Sending move to server\n"
-                    send cstream (SMPlay move)
-
-                | None -> send cstream (SMPlay [])
-                
+                    
+                    if (List.length payload.word) = (List.length payload.coordinates) then
+                        
+                        let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) payload.word |> List.zip payload.coordinates
+                        debugPrint (sprintf "Returning candidate move: %A\n" move)
+                        move
+                    else
+                        debugPrint (sprintf "Detected discrepancy in list lengts for coords and word. Word: %A, coords: %A\n" payload.word payload.coordinates)
+                        []
+                | None ->
+                    debugPrint (sprintf "No payload available for word %A\n" word)
+                    []
+            
+            
+            let mockHand =
+                if isFirstRound then st.hand
+                else playableLetters
+                     |> List.map (fun (c, _) -> Utils.letterToNumber c)
+                     |> List.fold (fun hand c -> MultiSet.addSingle c hand) (State.hand st)
+            
+            let longestPossibleWord =
+                Array.Parallel.map (WordSearch.findCandidateWords mockHand (State.dict st)) lettersInHand
+                |> Array.Parallel.map (fun a -> List.map playFromWord a)
+                |> Array.toList
+                |> List.fold (@) []
+                |> List.filter (fun l -> List.length l > 0 && (List.fold (fun (hand, b) (_, (_, (c, _))) ->
+                    // This is fucking janky
+                    // This is an additional check to see if the player has all the letters in the hand
+                    if MultiSet.contains (Utils.letterToNumber c) hand then
+                        (MultiSet.removeSingle (Utils.letterToNumber c) hand, b)
+                    else (st.hand, false)) (st.hand, true) l) |> snd)
+                |> List.tryItem 0
+                |> Option.defaultValue []
+            
+            send cstream (SMPlay longestPossibleWord)
                 
             let msg = recv cstream
             //debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
@@ -214,16 +234,18 @@ module Scrabble =
                 debugPrint "Returning from CMPlaySuccess"
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
-                debugPrint "CMPlayed\n"
+                debugPrint "CMPlayed!! Updating\n"
                 (* Successful play by other player. Update your state *)
-                let (coords, tiles) = List.unzip ms
-                let (tileIDs, word) = List.unzip tiles
-                // TODO: FIX
-                // let insertResult = StatefulBoard.insertWord coords[0] (getOrientation coords) word st.statefulBoard  
                 
-
-                let st' = st // This state needs to be updated, only board (and possibly player number/turn)
-                aux st'
+                if pid = st.playerNumber then
+                    aux st
+                else
+                    let (coords, charinfo) = List.unzip ms
+                    let (_, word) = List.unzip charinfo
+                    let orientation = Utils.determineDirectionOfPlayedWord ms
+                    let sb' = StatefulBoard.insertWord word coords orientation st.statefulBoard
+                    let st' = {st with statefulBoard = sb'}
+                    aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 debugPrint "CMPlayFailed\n"
                 (* Failed play. Update your state *)
