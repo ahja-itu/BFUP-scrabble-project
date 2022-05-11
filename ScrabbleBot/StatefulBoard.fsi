@@ -30,7 +30,7 @@ module internal StatefulBoard =
     val getPlacedTilesAndPositonsForChar : char -> StatefulBoard -> (int * int) list
 
     
-    val determineCoordinatesWithDuplicates : char -> (char * int) list -> int * int -> WordOrientation -> (int * int) list list
+    val determineCoordinatesWithDuplicates : char -> (char * int) list -> int * int -> WordOrientation -> StatefulBoard -> boardFun2 -> (int * int) list list
     val possibleWordPlacements : int * int -> (char * int) list -> WordOrientation -> StatefulBoard -> boardFun2 -> WordInsertPayload list option
    
     val insertWord : (char * int) list -> (int * int) list -> WordOrientation -> StatefulBoard -> StatefulBoard

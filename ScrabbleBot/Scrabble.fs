@@ -53,9 +53,10 @@ module State =
         hand                : MultiSet.MultiSet<uint32>
         consecutivePasses   : uint32
         statefulBoard       : StatefulBoard
+        lastFailedPlay      : ((int * int) * (uint32 * (char * int))) list option
     }
     
-    let mkState b d pn h cp sb = {board = b; dict = d;  playerNumber = pn; hand = h; consecutivePasses = cp; statefulBoard = sb } 
+    let mkState b d pn h cp sb = {board = b; dict = d;  playerNumber = pn; hand = h; consecutivePasses = cp; statefulBoard = sb; lastFailedPlay = None} 
 
     let board st            = st.board
     let dict st             = st.dict
@@ -71,6 +72,14 @@ module Scrabble =
     let playGame cstream pieces (st : State.state) =
         // Pieces is a map from a letter (represented in its index in the alphabet (1-indexed)) to its (char * int) pair
 
+        let printStatefulBoard () =
+            debugPrint "#################\nPrinting statefulboard content:\n"
+            for (c, lst) in StatefulBoard.getPlacedTilesAndPositons st.statefulBoard do
+                debugPrint (sprintf "Character %c is located here:\n" c)
+                for (x, y) in lst do
+                    debugPrint (sprintf "(%i, %i)\n" x y)
+            debugPrint "##################\n\n\n"
+        
 
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
@@ -78,29 +87,17 @@ module Scrabble =
             // remove the force print when you move on from manual input (or when you have learnt the format)
             // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
             
+            printStatefulBoard ()
             
-            debugPrint "#################\nPrinting statefulboard content:\n"
-            for (c, lst) in StatefulBoard.getPlacedTilesAndPositons st.statefulBoard do
-                debugPrint (sprintf "Character %c is located here:\n" c)
-                for (x, y) in lst do
-                    debugPrint (sprintf "(%i, %i)\n" x y)
-            debugPrint "##################\n\n\n"
             
             // Determine whether or not we're at turn 1
             let isFirstRound =
                 match getSquare st.board.center st.statefulBoard with
                 | Some sq -> false
                 | _ -> true
-                
-            debugPrint (sprintf "Is this the first round? %b\n" isFirstRound)
             
-            // Lets try to determine where we would want to put some words
-            
-
             let lettersInHand = Utils.handToLetters st.hand
            
-            // TODO: Attempting to determine the playable letters is not working as intended
-            // maybe create a temporary "fake" hand, that also contains the playableLetters on the board
             let playableLetters =
                 if not isFirstRound then 
                     StatefulBoard.getPlacedTilesAndPositons st.statefulBoard
@@ -108,10 +105,10 @@ module Scrabble =
                     lettersInHand |> Array.toList |> List.map (fun e -> (e, [st.board.center]))
             debugPrint (sprintf "Determining playable letters: %A\n" playableLetters)
             
-            let playFromWord (candidateWord: string) : ((int * int) * (uint32 * (char * 'c))) list = 
-                debugPrint (sprintf "candidate word to play: %A\n" candidateWord)
+            let playFromWord (candidateWord: string) : ((int * int) * (uint32 * (char * int))) list = 
+                // debugPrint (sprintf "candidate word to play: %A\n" candidateWord)
                 let word = candidateWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
-                debugPrint (sprintf "Constructed word to play: %A\n" word)
+                // debugPrint (sprintf "Constructed word to play: %A\n" word)
                 
                 // Filter playable letters by the letters of the word
                 
@@ -131,10 +128,10 @@ module Scrabble =
                     match playableLetters' with
                     | [] -> None
                     | (c, lst) :: cs ->
-                        debugPrint (sprintf "Considering plays for %c\n" c)
+                        // debugPrint (sprintf "Considering plays for %c\n" c)
                         let r = lst |> List.filter (isNotBothWordDirections)
                                     |> List.map (fun e ->
-                                         debugPrint (sprintf "Mapping coordinates: %A -> %A\n" c e)
+                                         // debugPrint (sprintf "Mapping coordinates: %A -> %A\n" c e)
                                          StatefulBoard.possibleWordPlacements e word (getOppositeDirection e) st.statefulBoard st.board.squares)
                         
                         let candidate = List.tryFind (fun e ->
@@ -142,7 +139,7 @@ module Scrabble =
                             | Some lst -> true
                             | _ -> false) r
                         
-                        debugPrint (sprintf "Try finding candidate: %A\n" candidate)
+                        // debugPrint (sprintf "Try finding candidate: %A\n" candidate)
                         
                         match candidate with
                         | Some s -> match s with
@@ -154,24 +151,24 @@ module Scrabble =
                                     | None -> findFirstPossibleWordPlay cs
                         | None -> findFirstPossibleWordPlay cs
 
-                debugPrint "Going to find first possible word play\n"
+                // debugPrint "Going to find first possible word play\n"
                 let playPayload = findFirstPossibleWordPlay playableLetters
                 match playPayload with
                 | Some payload ->
-                    debugPrint (sprintf "playPayload: %A\n" playPayload)                
-                    debugPrint (sprintf "Constucting move on word: %A, coords: %A\n" payload.word payload.coordinates)  
+                    // debugPrint (sprintf "playPayload: %A\n" playPayload)                
+                    // debugPrint (sprintf "Constucting move on word: %A, coords: %A\n" payload.word payload.coordinates)  
                     //        this is the characters that gets connected to their id    this is connecting the coords before the characters
                     
                     if (List.length payload.word) = (List.length payload.coordinates) then
                         
                         let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) payload.word |> List.zip payload.coordinates
-                        debugPrint (sprintf "Returning candidate move: %A\n" move)
+                        // debugPrint (sprintf "Returning candidate move: %A\n" move)
                         move
                     else
-                        debugPrint (sprintf "Detected discrepancy in list lengts for coords and word. Word: %A, coords: %A\n" payload.word payload.coordinates)
+                        // debugPrint (sprintf "Detected discrepancy in list lengts for coords and word. Word: %A, coords: %A\n" payload.word payload.coordinates)
                         []
                 | None ->
-                    debugPrint (sprintf "No payload available for word %A\n" word)
+                    // debugPrint (sprintf "No payload available for word %A\n" word)
                     []
             
             
@@ -192,8 +189,13 @@ module Scrabble =
                     if MultiSet.contains (Utils.letterToNumber c) hand then
                         (MultiSet.removeSingle (Utils.letterToNumber c) hand, b)
                     else (st.hand, false)) (st.hand, true) l) |> snd)
-                |> List.tryItem 0
-                |> Option.defaultValue []
+                |> List.filter (fun word ->
+                        match st.lastFailedPlay with
+                        | None -> true
+                        | Some word' -> not (word = word'))
+                |> List.fold (fun acc x -> if List.length acc > List.length x then acc else x) []
+            
+            debugPrint (sprintf "Will be attempting to play word: %A\n" longestPossibleWord)
             
             send cstream (SMPlay longestPossibleWord)
                 
@@ -222,7 +224,7 @@ module Scrabble =
                 
                 let (coords, charinfo) = List.unzip ms
                 let (_, word) = List.unzip charinfo
-                let orientation = Utils.determineDirectionOfPlayedWord ms
+                let orientation = Utils.determineDirectionOfPlayedWord ms st.statefulBoard
                 
                 
                 let sb' = StatefulBoard.insertWord word coords orientation st.statefulBoard
@@ -242,14 +244,18 @@ module Scrabble =
                 else
                     let (coords, charinfo) = List.unzip ms
                     let (_, word) = List.unzip charinfo
-                    let orientation = Utils.determineDirectionOfPlayedWord ms
+                    let orientation = Utils.determineDirectionOfPlayedWord ms st.statefulBoard
                     let sb' = StatefulBoard.insertWord word coords orientation st.statefulBoard
                     let st' = {st with statefulBoard = sb'}
                     aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 debugPrint "CMPlayFailed\n"
                 (* Failed play. Update your state *)
-                let st' = st // This state needs to be updated  
+                
+                
+                
+                // Lets attempt not to repeat failed plays by saving the last failed play
+                let st' = {st with lastFailedPlay = Some ms} 
                 aux st'
             | RCM (CMPassed _) -> // TODO keep track of consecutive passes, if 3 end game
                 debugPrint "CMPassed\n"
@@ -265,7 +271,12 @@ module Scrabble =
                 failwith (sprintf "not implmented: %A" a)
             | RGPE err ->
                 debugPrint (sprintf "RGPE err: %A\n" err)
-                printfn "Gameplay Error:\n%A" err; aux st
+                printfn "Gameplay Error:\n%A" err
+                
+                printStatefulBoard ()
+                
+                
+                aux st
 
         aux st
 
