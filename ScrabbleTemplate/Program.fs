@@ -28,8 +28,8 @@ let main argv =
     System.Console.Clear()
 
 
-    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
-//    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
+//    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
+    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
 
 //    let board      = ScrabbleUtil.RandomBoard.randomBoard ()
 //    let board      = ScrabbleUtil.RandomBoard.randomBoardSeed (Some 42)

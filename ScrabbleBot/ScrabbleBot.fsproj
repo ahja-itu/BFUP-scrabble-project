@@ -7,16 +7,18 @@
     <Compile Include="MultiSet.fs" />
     <Compile Include="FParsecLight.fsi" />
     <Compile Include="FParsecLight.fs" />
+    <Compile Include="PointQuery.fsi" />
+    <Compile Include="PointQuery.fs" />
     <Compile Include="StateMonad.fsi" />
     <Compile Include="StateMonad.fs" />
     <Compile Include="Eval.fs" />
     <Compile Include="Parser.fsi" />
     <Compile Include="Parser.fs" />
+    <Compile Include="WordSearch.fsi" />
+    <Compile Include="Utils.fs" />
     
     <Compile Include="StatefulBoard.fsi" />
     <Compile Include="StatefulBoard.fs" />
-    <Compile Include="Utils.fs" />
-    <Compile Include="WordSearch.fsi" />
     <Compile Include="WordSearch.fs" />
     <Compile Include="Scrabble.fsi" />
     <Compile Include="Scrabble.fs" />

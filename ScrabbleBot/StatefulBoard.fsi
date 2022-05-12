@@ -1,5 +1,7 @@
 namespace EmmaGaddagBot
 
+open Eval
+open MultiSet
 open Parser
 
 module internal StatefulBoard =
@@ -35,3 +37,5 @@ module internal StatefulBoard =
    
     val insertWord : (char * int) list -> (int * int) list -> WordOrientation -> StatefulBoard -> StatefulBoard
     
+    val playFromWord : StatefulBoard -> boardFun2 -> MultiSet<uint32> -> string -> ((int * int) * (uint32 * (char * int))) list
+    val determineDirectionOfPlayedWord : (coord * (uint32 * (char * int))) list -> StatefulBoard -> WordOrientation

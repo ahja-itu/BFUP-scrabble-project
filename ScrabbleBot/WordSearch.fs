@@ -46,7 +46,7 @@ module internal WordSearch =
     let rec traverseDictForWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (currentWord : char list) (foundWords: HashSet<char list>) : HashSet<char list> =
         match size hand with
         | 0u -> foundWords
-        | _ -> 
+        | _ ->
             match step c dict with
             | Some (isWord, dict') ->
                 // We have found a complete word!

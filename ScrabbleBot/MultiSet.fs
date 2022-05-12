@@ -7,8 +7,8 @@
     let empty = MS Map.empty<'a, uint32>
     let size (MS ms) = Map.fold (fun acc k v -> acc + v) 0u ms
     let isEmpty mms = size mms = 0u
-    let contains a (MS ms) = ms.ContainsKey a
     let numItems a (MS ms) = ms.TryFind a |> Option.defaultValue 0u
+    let contains a (MS ms) = ms.ContainsKey a && (numItems a (MS ms) > 0u)
     let add a n mms =
         numItems a mms 
         |> (fun count -> (unpack mms).Add (a, n + count))
