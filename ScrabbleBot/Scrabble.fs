@@ -72,86 +72,60 @@ module Scrabble =
     open System.Threading
 
     let playGame cstream pieces (st : State.state) =
-        // Pieces is a map from a letter (represented in its index in the alphabet (1-indexed)) to its (char * int) pair
-
+        // PREGAME SETUP
+        // Put the center coordinate into the PointQuery queue before starting
+        PointQuery.put(st.board.center)
         
-        let printStatefulBoard () =
-            debugPrint "#################\nPrinting statefulboard content:\n"
-//            for (c, lst) in StatefulBoard.getPlacedTilesAndPositons st.statefulBoard do
-//                debugPrint (sprintf "Character %c is located here:\n" c)
-//                for (x, y) in lst do
-//                    debugPrint (sprintf "(%i, %i)\n" x y)
-            debugPrint "##################\n\n\n"
+    
         
 
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
-
-            // remove the force print when you move on from manual input (or when you have learnt the format)
-            // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            
-            printStatefulBoard ()
             
             // Determine whether or not we're at turn 1
             let isFirstRound =
                 match getSquare st.board.center st.statefulBoard with
                 | Some sq -> false
                 | _ -> true
-            
-            let lettersInHand = Utils.handToLetters st.hand
-           
-            let playableLetters =
-                if not isFirstRound then 
-                    StatefulBoard.getPlacedTilesAndPositons st.statefulBoard
-                else
-                    lettersInHand |> Array.toList |> List.map (fun e -> (e, [st.board.center]))
-                    
-                    
-            debugPrint (sprintf "Determining playable letters: %A\n" playableLetters)
-            
-            let mockHand =
-                if isFirstRound then st.hand
-                else playableLetters
-                     |> List.map (fun (c, _) -> Utils.letterToNumber c)
-                     |> List.fold (fun hand c -> MultiSet.addSingle c hand) (State.hand st)
-            
-            let mockHands =
-                 playableLetters
-                 |> List.map (fun (c, _) -> Utils.letterToNumber c)
-                 |> List.map (fun c -> MultiSet.addSingle c st.hand)
-                 |> Array.ofList
-                 
-            let playableLetters' =
-                List.map fst playableLetters |> Array.ofList
-                
+                            
             let someLetter = MultiSet.toList st.hand |> List.head
             let hand' = MultiSet.removeSingle someLetter st.hand
             let centerX, centerY = st.board.center
-
+            
+            let firstRoundPlay () =
+                WordSearch.findCandidateWords hand' st.dict (Utils.numberToLetter someLetter)
+                |> List.fold (fun acc s -> if String.length acc < String.length s then s else acc) ""
+                |> Seq.mapi (fun i e -> ((centerX + i, centerY), ((Utils.letterToNumber e), Utils.pairLetterWithPoint e)))
+                |> Seq.toList
+                
+                
             // This is a function to attempt to find a playable word from one coordinate at the time
-            let rec fastWordPlay () =
-                match PointQuery.get () with
-                | Some coord ->
+            let rec singleWordPlay iteration =
+                if iteration > 10000 then [] else
+                    match PointQuery.get () with
+                    | Some coord ->
+                        match getSquare coord st.statefulBoard with
+                            | Some sq ->
+                                 
+                                 let candidate =
+                                     sq.letter
+                                     |> fst
+                                     |> Utils.letterToNumber
+                                     |> fun l -> MultiSet.addSingle l st.hand
+                                     |> fun mockHand -> WordSearch.findCandidateWords mockHand st.dict (fst sq.letter)
+                                     |> List.fold (fun max curr -> if String.length max < String.length curr then curr else max) ""
+                                     |> playFromWord st.statefulBoard st.board.squares st.hand (fst sq.letter, coord)
+                                     
+                                 match candidate with
+                                 | [] -> PointQuery.put(coord); singleWordPlay (iteration + 1)
+                                 | candidate' -> candidate'
+                            | None ->
+                                if isFirstRound then firstRoundPlay () else
+                                    PointQuery.put(coord); singleWordPlay (iteration + 1)
+                    | None -> [] // We had an empty queue :(
                     
                     
-                | None -> fastWordPlay ()
-                
-                
-            
-            
-            
-            
-            let longestPossibleWord' =
-                if isFirstRound then
-                    WordSearch.findCandidateWords hand' (State.dict st) (Utils.numberToLetter someLetter)
-                    |> List.fold (fun acc s -> if String.length acc < String.length s then s else acc) ""
-                    |> Seq.mapi (fun i e -> ((centerX + i, centerY), ((Utils.letterToNumber e), Utils.pairLetterWithPoint e)))
-                    |> Seq.toList
-                else Array.Parallel.map (WordSearch.findCandidateWords st.hand (State.dict st) >> List.map (playFromWord st.statefulBoard st.board.squares st.hand)) playableLetters'
-                     |> Array.toList
-                     |> List.fold (@) []
-                     |> List.filter (fun l -> List.length l > 0)
-                     |> List.fold (fun acc x -> if List.length acc > List.length x then acc else x) []
+            let longestPossibleWord' = singleWordPlay 0
             
             // Add all of the coordinates of the longest possible word to the point query queue
             // TODO: Could be async. But would that even save time for such small words?
@@ -233,11 +207,12 @@ module Scrabble =
                 debugPrint (sprintf "%A\n" a)
                 failwith (sprintf "not implmented: %A" a)
             | RGPE err ->
+                
+                if List.contains GPEEmptyMove err
+                then PointQuery.print () else ()
+                
                 debugPrint (sprintf "RGPE err: %A\n" err)
                 printfn "Gameplay Error:\n%A" err
-                
-                printStatefulBoard ()
-                
                 
                 aux st
 

@@ -9,5 +9,7 @@ module PointQuery =
     val get : unit -> (int * int) option
     val put : (int * int) -> unit
     
+    val print : unit -> unit
+    
     
 

@@ -39,20 +39,6 @@ module internal StatefulBoard =
             match getSquare coords sb with
             | Some sq -> not (sq.orientation = Both)
             | None -> false
-           
-           
-    // TODO: make this function removable
-    let getPlacedTilesAndPositons (sb: StatefulBoard) : (char * (int * int) list) list =
-        let (SB board) = sb
-        [for key in letters.Keys -> (key, letters.[key])]
-        |> List.map(fun (c, lst) -> (c, List.filter (positionIsNotWithBothWordDirections sb) lst))
-
-    
-    // TODO make this function removable
-    let getPlacedTilesAndPositonsForChar (c: char) (SB (_, letters): StatefulBoard) : (int * int) list =
-        match letters.TryGetValue(c) with
-        | true, coords -> coords
-        | false, _ -> []
 
     let isSome (x: 'a option) : bool =
         match x with
@@ -227,7 +213,6 @@ module internal StatefulBoard =
                         // Update the board
                         board'.Add(c, {letter = l; word = word; pos = pos; orientation = wordOrientation})
                         // Let the coordinate be playable for another word across
-                        PointQuery.put(c)
                         aux (pos + 1) board' ls cs
                 | _, _ -> SB board'
             
@@ -235,19 +220,8 @@ module internal StatefulBoard =
     
     
     
-    let playFromWord (sb : StatefulBoard) (squares: boardFun2) (hand: MultiSet.MultiSet<uint32>) (candidateWord: string) : ((int * int) * (uint32 * (char * int))) list = 
+    let playFromWord (sb : StatefulBoard) (squares: boardFun2) (hand: MultiSet.MultiSet<uint32>) ((rootChar, rootCoord) : char * (int * int)) (candidateWord: string) : ((int * int) * (uint32 * (char * int))) list = 
                 let word = candidateWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
-         
-                // We find the "bogus" character in the word that we don't have on the hand
-                let _, charToPlayFrom =
-                    candidateWord |> Seq.fold (fun (hand', a) c ->
-                        if MultiSet.contains (Utils.letterToNumber c) hand'
-                        then (MultiSet.removeSingle (Utils.letterToNumber c) hand', a)
-                        else (hand', c)) (hand, char 0)
-                    
-                // We get the coordinate sof all places where that character is located on the board
-                let coords = getPlacedTilesAndPositonsForChar charToPlayFrom sb
-                
                 
                 let isNotBothWordDirections coords =
                     match getSquare coords sb with
@@ -263,8 +237,6 @@ module internal StatefulBoard =
                     match rootCharsToPlayFrom with
                     | [] -> None
                     | coord :: coords ->
-                        // debugPrint (sprintf "Considering plays for %c\n" c)
-                        
                         let possiblePlacements =
                             // TODO This check might be redundant
                             if isNotBothWordDirections coord
@@ -276,24 +248,13 @@ module internal StatefulBoard =
                         | _ -> findFirstPossibleWordPlay coords
 
                 // debugPrint "Going to find first possible word play\n"
-                let playPayload = findFirstPossibleWordPlay coords
+                let playPayload = findFirstPossibleWordPlay [rootCoord]
                 match playPayload with
                 | Some payload ->
-                    // debugPrint (sprintf "playPayload: %A\n" playPayload)                
-                    // debugPrint (sprintf "Constucting move on word: %A, coords: %A\n" payload.word payload.coordinates)  
-                    //        this is the characters that gets connected to their id    this is connecting the coords before the characters
-                    
                     if (List.length payload.word) = (List.length payload.coordinates) then
-                        
-                        let move = List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) payload.word |> List.zip payload.coordinates
-                        // debugPrint (sprintf "Returning candidate move: %A\n" move)
-                        move
-                    else
-                        // debugPrint (sprintf "Detected discrepancy in list lengts for coords and word. Word: %A, coords: %A\n" payload.word payload.coordinates)
-                        []
-                | None ->
-                    // debugPrint (sprintf "No payload available for word %A\n" word)
-                    []
+                        List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) payload.word |> List.zip payload.coordinates
+                    else []
+                | None -> []
     
   
       

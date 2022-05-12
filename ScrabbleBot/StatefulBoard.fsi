@@ -26,16 +26,11 @@ module internal StatefulBoard =
     val mkStatefulBoard : unit -> StatefulBoard
 
     val getSquare : (int * int) -> StatefulBoard -> StatefulSquare option // x,y-coordinate -> current board -> updated board
-
-
-    val getPlacedTilesAndPositons : StatefulBoard -> (char * (int * int) list) list
-    val getPlacedTilesAndPositonsForChar : char -> StatefulBoard -> (int * int) list
-
     
     val determineCoordinatesWithDuplicates : char -> (char * int) list -> int * int -> WordOrientation -> StatefulBoard -> boardFun2 -> (int * int) list list
     val possibleWordPlacements : int * int -> (char * int) list -> WordOrientation -> StatefulBoard -> boardFun2 -> WordInsertPayload list option
    
     val insertWord : (char * int) list -> (int * int) list -> WordOrientation -> StatefulBoard -> StatefulBoard
     
-    val playFromWord : StatefulBoard -> boardFun2 -> MultiSet<uint32> -> string -> ((int * int) * (uint32 * (char * int))) list
+    val playFromWord : StatefulBoard -> boardFun2 -> MultiSet<uint32> -> (char * (int * int)) -> string -> ((int * int) * (uint32 * (char * int))) list
     val determineDirectionOfPlayedWord : (coord * (uint32 * (char * int))) list -> StatefulBoard -> WordOrientation

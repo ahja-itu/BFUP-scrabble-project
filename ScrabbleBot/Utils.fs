@@ -6,7 +6,6 @@ open Parser
 module internal Utils =
 
     open ScrabbleUtil
-    open StatefulBoard
 
     let numberToLetter : uint32 -> char =
         fun (n: uint32) -> char (n + 64u)

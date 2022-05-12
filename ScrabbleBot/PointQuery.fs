@@ -1,5 +1,7 @@
 namespace EmmaGaddagBot
 open System.Collections.Generic
+open System.Diagnostics
+open ScrabbleUtil
 
 module PointQuery =
     
@@ -14,11 +16,11 @@ module PointQuery =
             let rec loop () = async {
                 let! msg = inbox.Receive()
                 match msg with
-                | Put (x, y) -> queue.Enqueue((x, y))
+                | Put (x, y) -> DebugPrint.debugPrint (sprintf "Enqueue %A\n" (x, y)); queue.Enqueue((x, y))
                 | Get ch ->
                     match queue.TryDequeue() with
-                    | true, coord -> ch.Reply(Some coord)
-                    | false, _ -> ch.Reply(None)
+                    | true, coord -> DebugPrint.debugPrint (sprintf "Dequeue %A\n" coord); ch.Reply(Some coord)
+                    | false, _ -> DebugPrint.debugPrint "PointQuery queue empty!!!\n"; ch.Reply(None)
                 return! loop ()
             }
             loop()
@@ -32,4 +34,11 @@ module PointQuery =
     let put : (int * int) -> unit
         = fun coord -> postbox.Post(Put coord)
 
+    let print : unit -> unit
+        = fun () ->
+            DebugPrint.debugPrint "##################################"            
+            DebugPrint.debugPrint "Printing PointQuery queue contents:\n"
+            for item in queue.ToArray() do
+                DebugPrint.debugPrint (sprintf "%A\n" item)
+            DebugPrint.debugPrint "##################################"
 
