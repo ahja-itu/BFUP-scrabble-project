@@ -76,9 +76,6 @@ module Scrabble =
         // Put the center coordinate into the PointQuery queue before starting
         PointQuery.put(st.board.center)
         
-    
-        
-
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
             
@@ -98,10 +95,9 @@ module Scrabble =
                 |> Seq.mapi (fun i e -> ((centerX + i, centerY), ((Utils.letterToNumber e), Utils.pairLetterWithPoint e)))
                 |> Seq.toList
                 
-                
             // This is a function to attempt to find a playable word from one coordinate at the time
             let rec singleWordPlay iteration =
-                if iteration > 10000 then [] else
+                if iteration > 1000 then [] else
                     match PointQuery.get () with
                     | Some coord ->
                         match getSquare coord st.statefulBoard with
@@ -123,18 +119,27 @@ module Scrabble =
                                 if isFirstRound then firstRoundPlay () else
                                     PointQuery.put(coord); singleWordPlay (iteration + 1)
                     | None -> [] // We had an empty queue :(
-                    
-                    
-            let longestPossibleWord' = singleWordPlay 0
             
-            // Add all of the coordinates of the longest possible word to the point query queue
-            // TODO: Could be async. But would that even save time for such small words?
+            
+            // Look at this fancy parallelism
+            let manyWordCandidates = 
+                [0..3]
+                |> List.map (fun _ -> async { return singleWordPlay 0 })
+                |> Async.Parallel
+                |> Async.RunSynchronously
+                |> Array.toList
+                |> List.fold (fun max curr -> if List.length max < List.length curr then curr else max) []
+                    
+            let longestPossibleWord' = manyWordCandidates
+
             for (coord, _) in longestPossibleWord' do
                 PointQuery.put(coord)
             
             debugPrint (sprintf "Will be attempting to play word: %A\n" longestPossibleWord')
             
-            send cstream (SMPlay longestPossibleWord')
+            match longestPossibleWord' with
+            | [] -> send cstream (SMChange (MultiSet.toList st.hand)) // yikes
+            | _ -> send cstream (SMPlay longestPossibleWord')
                 
             let msg = recv cstream
             //debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
@@ -185,6 +190,13 @@ module Scrabble =
                     let sb' = StatefulBoard.insertWord word coords orientation st.statefulBoard
                     let st' = {st with statefulBoard = sb'}
                     aux st'
+             | RCM (CMChangeSuccess (newTiles)) -> 
+                debugPrint "CMChangeSucces\n"
+                // let hand' = MultiSet.toList st.hand |> List.head |> fun letter -> MultiSet.removeSingle letter st.hand
+                let hand'' = List.fold (fun handy (letter, count) -> MultiSet.add letter count handy) (MultiSet.ofList []) newTiles //from CMPlaySuccess case
+                let st' = {st with hand = hand''}
+
+                aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 debugPrint "CMPlayFailed\n"
                 (* Failed play. Update your state *)
