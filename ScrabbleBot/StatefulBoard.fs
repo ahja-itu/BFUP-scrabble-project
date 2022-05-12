@@ -19,6 +19,7 @@ module internal StatefulBoard =
         word: (char * int) list
         coordinates: (int * int) list
         orientation: WordOrientation
+        coordsToRemove : (int * int) list
     }
 
     // first dictionary: coordinates to a square
@@ -139,13 +140,13 @@ module internal StatefulBoard =
             // TODO: we can determine which placed tiles that should be of orientation both in this function
             //       and we are able to update the board from here, so it would be nice to do
             
-            let rec aux pos coords' acc posToRemove =
+            let rec aux pos coords' acc posToRemove coordsToRemove =
                 match coords' with
                 | c :: cs->
                     match getSquare c board with
-                    | Some sq -> aux (pos + 1) cs acc (pos :: posToRemove) 
-                    | None -> aux (pos + 1) cs (c :: acc) posToRemove
-                | _ -> (List.rev acc, posToRemove)
+                    | Some sq -> aux (pos + 1) cs acc (pos :: posToRemove) (c :: coordsToRemove)
+                    | None -> aux (pos + 1) cs (c :: acc) posToRemove coordsToRemove
+                | _ -> ((List.rev acc, posToRemove), coordsToRemove)
             
             let removePosFromWord word posToRemove =
                 let indicesToKeep = 
@@ -173,8 +174,8 @@ module internal StatefulBoard =
             match maybeChar with
             | Some c ->
                 determineCoordinatesWithDuplicates c word coord orientation board squares
-                |> List.map (fun coords' -> aux 0 coords' [] [])
-                |> List.map (fun (coords', posToRemove) -> { word = removePosFromWord word posToRemove; coordinates = coords'; orientation = orientation })
+                |> List.map (fun coords' -> aux 0 coords' [] [] [])
+                |> List.map (fun ((coords', posToRemove), coordsToremove) -> { word = removePosFromWord word posToRemove; coordinates = coords'; orientation = orientation; coordsToRemove = coordsToremove})
                 |> Some
             | None -> None
     let determineDirectionOfPlayedWord (ms: (coord * (uint32 * (char * int))) list) (sb: StatefulBoard) : WordOrientation =
@@ -220,8 +221,8 @@ module internal StatefulBoard =
     
     
     
-    let playFromWord (sb : StatefulBoard) (squares: boardFun2) (hand: MultiSet.MultiSet<uint32>) ((rootChar, rootCoord) : char * (int * int)) (candidateWord: string) : ((int * int) * (uint32 * (char * int))) list = 
-                let word = candidateWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
+    let playFromWord (sb : StatefulBoard) (squares: boardFun2) (hand: MultiSet.MultiSet<uint32>) ((rootChar, rootCoord) : char * (int * int)) (candidateWord: (char * int) list) : (int * int) list * ((int * int) * (uint32 * (char * int))) list = 
+                // let word = candidateWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
                 
                 let isNotBothWordDirections coords =
                     match getSquare coords sb with
@@ -240,7 +241,7 @@ module internal StatefulBoard =
                         let possiblePlacements =
                             // TODO This check might be redundant
                             if isNotBothWordDirections coord
-                            then possibleWordPlacements coord word (getOppositeDirection coord) sb squares
+                            then possibleWordPlacements coord candidateWord (getOppositeDirection coord) sb squares
                             else None
                         
                         match possiblePlacements with
@@ -252,9 +253,12 @@ module internal StatefulBoard =
                 match playPayload with
                 | Some payload ->
                     if (List.length payload.word) = (List.length payload.coordinates) then
-                        List.map (fun tuple -> (Utils.letterToNumber (fst tuple), tuple)) payload.word |> List.zip payload.coordinates
-                    else []
-                | None -> []
+                        List.map (fun tuple -> match tuple with
+                                               | _, 0 -> (0u, tuple)  
+                                               | _, _ -> (Utils.letterToNumber (fst tuple), tuple)) payload.word
+                        |> fun lst -> (payload.coordsToRemove, List.zip payload.coordinates lst)
+                    else ([], [])
+                | None -> ([], [])
     
   
       

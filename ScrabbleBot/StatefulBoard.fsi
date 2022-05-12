@@ -19,6 +19,7 @@ module internal StatefulBoard =
         word: (char * int) list
         coordinates: (int * int) list
         orientation: WordOrientation
+        coordsToRemove : (int * int) list
     }
 
 
@@ -32,5 +33,5 @@ module internal StatefulBoard =
    
     val insertWord : (char * int) list -> (int * int) list -> WordOrientation -> StatefulBoard -> StatefulBoard
     
-    val playFromWord : StatefulBoard -> boardFun2 -> MultiSet<uint32> -> (char * (int * int)) -> string -> ((int * int) * (uint32 * (char * int))) list
+    val playFromWord : StatefulBoard -> boardFun2 -> MultiSet<uint32> -> (char * (int * int)) -> (char * int) list -> (int * int) list * ((int * int) * (uint32 * (char * int))) list
     val determineDirectionOfPlayedWord : (coord * (uint32 * (char * int))) list -> StatefulBoard -> WordOrientation

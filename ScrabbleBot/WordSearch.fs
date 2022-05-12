@@ -1,15 +1,7 @@
 namespace EmmaGaddagBot
 
 module internal WordSearch =
-
-
-    (*
-
-        TODO: all words as char lists, such that we can represent the special character from the Gaddag
-              and then finally correct the found words into strings that are "ordered" correctly
-
-    *)
-
+    
     open ScrabbleUtil.Dictionary
     open MultiSet
     open System.Collections.Generic
@@ -35,23 +27,28 @@ module internal WordSearch =
             alphabet |> List.filter (aux dict)
 
     let actuallyAvailableLetters (hand: MultiSet.MultiSet<uint32>) (availableLetters: char list) : char list =
-        availableLetters |> List.filter (fun c -> c = char 0 || contains (letterToNumber c) hand)
+        availableLetters |> List.filter (fun c -> c = char 0 || contains (letterToNumber c) hand || MultiSet.contains 0u hand)
 
-    let toCorrectWord : char list -> string =
+    let toCorrectWord : (char * int) list -> (char * int) list =
         fun word ->
-            List.findIndex ((=) (char 0)) word 
+            List.findIndex (fst >> (=) (char 0)) word 
             |> (fun i -> (List.take i word |> List.rev) @ (List.skip (i + 1) word))
-            |> (fun s -> List.map string s |> List.fold (+) "")
 
-    let rec traverseDictForWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (currentWord : char list) (foundWords: HashSet<char list>) : HashSet<char list> =
+    let rec traverseDictForWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (currentWord : (char * int) list) (foundWords: HashSet<(char * int) list>) : HashSet<(char * int) list> =
         match size hand with
         | 0u -> foundWords
         | _ ->
             match step c dict with
             | Some (isWord, dict') ->
-                // We have found a complete word!
-                let hand' = removeSingle (letterToNumber c) hand
-                let currentWord' = List.append currentWord [c]
+                let hand', wildcardWasUsed =
+                    if contains (letterToNumber c) hand
+                    then (removeSingle (letterToNumber c) hand, false)
+                    else (removeSingle 0u hand, true)
+                
+                let currentWord' =
+                    if wildcardWasUsed
+                    then List.append currentWord [(c, 0)]
+                    else List.append currentWord [(Utils.pairLetterWithPoint c)]
 
                 // Update the found words and ignore the output of this, it is not relevant
                 ignore <| if isWord then foundWords.Add(currentWord') else true
@@ -59,18 +56,16 @@ module internal WordSearch =
                 nextLettersInGaddag dict 
                 |> actuallyAvailableLetters hand'
                 |> List.map (fun c -> traverseDictForWords c hand' dict' currentWord' foundWords)
-                |> List.fold (fun acc hs -> acc.UnionWith(hs); acc) (new HashSet<char list>())
+                |> List.fold (fun acc hs -> acc.UnionWith(hs); acc) (new HashSet<(char*int) list>())
 
             | None ->
                 // The edge long char 'c' does not lead to a new node
                 foundWords
 
-    //let findCandidateWords (c: char) (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) : string list
-    //    = traverseDictForWords c hand dict [] (new HashSet<char list>())
-    //      |> fun words -> [for word in words -> toCorrectWord word]
-          
-
-    let findCandidateWords (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (c :char): string list
-        = traverseDictForWords c hand dict [] (new HashSet<char list>())
+    let findCandidateWords (hand: MultiSet.MultiSet<uint32>) (dict: ScrabbleUtil.Dictionary.Dict) (c :char): (char * int) list list
+        = traverseDictForWords c hand dict [] (new HashSet<(char * int) list>())
           |> fun words -> [for word in words -> toCorrectWord word]
+          
+          
+          
         

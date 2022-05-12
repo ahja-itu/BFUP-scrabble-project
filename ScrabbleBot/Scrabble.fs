@@ -91,13 +91,13 @@ module Scrabble =
             
             let firstRoundPlay () =
                 WordSearch.findCandidateWords hand' st.dict (Utils.numberToLetter someLetter)
-                |> List.fold (fun acc s -> if String.length acc < String.length s then s else acc) ""
-                |> Seq.mapi (fun i e -> ((centerX + i, centerY), ((Utils.letterToNumber e), Utils.pairLetterWithPoint e)))
+                |> List.fold (Utils.chooseHighestScoringWord) []
+                |> Seq.mapi (fun i e -> ((centerX + i, centerY), ((Utils.letterToNumber (fst e)), Utils.pairLetterWithPoint (fst e))))
                 |> Seq.toList
                 
             // This is a function to attempt to find a playable word from one coordinate at the time
             let rec singleWordPlay iteration =
-                if iteration > 1000 then [] else
+                if iteration > 1000 then ([], []) else
                     match PointQuery.get () with
                     | Some coord ->
                         match getSquare coord st.statefulBoard with
@@ -109,31 +109,31 @@ module Scrabble =
                                      |> Utils.letterToNumber
                                      |> fun l -> MultiSet.addSingle l st.hand
                                      |> fun mockHand -> WordSearch.findCandidateWords mockHand st.dict (fst sq.letter)
-                                     |> List.fold (fun max curr -> if String.length max < String.length curr then curr else max) ""
+                                     |> List.fold (Utils.chooseHighestScoringWord) []
                                      |> playFromWord st.statefulBoard st.board.squares st.hand (fst sq.letter, coord)
                                      
                                  match candidate with
-                                 | [] -> PointQuery.put(coord); singleWordPlay (iteration + 1)
-                                 | candidate' -> candidate'
+                                 | (_, []) -> PointQuery.put(coord); singleWordPlay (iteration + 1)
+                                 | res -> res
                             | None ->
-                                if isFirstRound then firstRoundPlay () else
+                                if isFirstRound then ([], firstRoundPlay ()) else
                                     PointQuery.put(coord); singleWordPlay (iteration + 1)
-                    | None -> [] // We had an empty queue :(
+                    | None -> ([], []) // We had an empty queue :(
             
             
             // Look at this fancy parallelism
-            let manyWordCandidates = 
-                [0..3]
+            let (coordinatesToRemove, manyWordCandidates) = 
+                [0..2]
                 |> List.map (fun _ -> async { return singleWordPlay 0 })
                 |> Async.Parallel
                 |> Async.RunSynchronously
                 |> Array.toList
-                |> List.fold (fun max curr -> if List.length max < List.length curr then curr else max) []
+                |> List.fold (fun (maxCoords, max) (currCoords, curr) -> if List.length max < List.length curr then (currCoords, curr) else (maxCoords, max)) ([], [])
                     
             let longestPossibleWord' = manyWordCandidates
 
             for (coord, _) in longestPossibleWord' do
-                PointQuery.put(coord)
+                if List.contains coord coordinatesToRemove then () else PointQuery.put(coord)
             
             debugPrint (sprintf "Will be attempting to play word: %A\n" longestPossibleWord')
             
@@ -150,8 +150,10 @@ module Scrabble =
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
 
                 // Define the function used in the foolowing fold to remove the played letters from the hand
-                let removeSingleLetter hand' (_, (_, (letter, _))) =
-                    MultiSet.removeSingle (Utils.letterToNumber letter) hand'
+                let removeSingleLetter hand' (_, (_, (letter, point))) =
+                    match point with
+                    | 0 -> MultiSet.removeSingle 0u hand'
+                    | _ -> MultiSet.removeSingle (Utils.letterToNumber letter) hand'
 
                 // Actually remove the letters from the hand, produce a new version of the hand
                 let hand' = 
