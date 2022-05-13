@@ -200,8 +200,6 @@ module internal Parser
     let IsDigitParse  = pIsDigit  >*>. parenthesise charParse |>> IsDigit  <?> "IsDigit"
     let IsVowelParse  = pIsVowel  >*>. parenthesise charParse |>> IsVowel  <?> "IsVowel"
 
-    // TODO: Nuværende implementation kan ikke håndtere parenteser der grupperer statements sammen
-
     do bp1ref.Value <-
         choice [
             ConjunctionParse

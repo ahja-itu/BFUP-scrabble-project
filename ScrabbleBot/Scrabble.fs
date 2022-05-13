@@ -220,7 +220,7 @@ module Scrabble =
             | RCM (CMPlayFailed (pid, ms)) ->
                 debugPrint "CMPlayFailed\n"
                 aux st
-            | RCM (CMPassed _) -> // TODO keep track of consecutive passes, if 3 end game
+            | RCM (CMPassed _) ->
                 debugPrint "CMPassed\n"
 
                 let st' = {st with consecutivePasses = st.consecutivePasses+1u}
