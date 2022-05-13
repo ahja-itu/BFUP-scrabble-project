@@ -22,8 +22,6 @@ module internal StatefulBoard =
         coordsToRemove : (int * int) list
     }
 
-    // first dictionary: coordinates to a square
-    // second dictionary: letters to coordinates where they can be found
     type StatefulBoard = SB of Dictionary<(int * int), StatefulSquare>
     
     let mkStatefulBoard () =
@@ -135,11 +133,7 @@ module internal StatefulBoard =
                 allowNeighboringPositions (x, y) coordSet sb squares))) // If all remaining coordinates are free to have tiles placed there, then its good
         
     let possibleWordPlacements : int * int -> (char * int) list -> WordOrientation -> StatefulBoard -> boardFun2 -> WordInsertPayload list option
-        = fun coord word orientation board squares ->
-            
-            // TODO: we can determine which placed tiles that should be of orientation both in this function
-            //       and we are able to update the board from here, so it would be nice to do
-            
+        = fun coord word orientation board squares ->            
             let rec aux pos coords' acc posToRemove coordsToRemove =
                 match coords' with
                 | c :: cs->
@@ -156,7 +150,6 @@ module internal StatefulBoard =
                 |> List.filter isSome
                 |> List.map unwrapSome
                 
-            // TODO: We can simplify this a lot - we know this coord to have something since it comes from the letters dict
             let maybeChar = // Some 'a'
                 match getSquare coord board with
                 | Some sq ->
@@ -222,8 +215,6 @@ module internal StatefulBoard =
     
     
     let playFromWord (sb : StatefulBoard) (squares: boardFun2) (hand: MultiSet.MultiSet<uint32>) ((rootChar, rootCoord) : char * (int * int)) (candidateWord: (char * int) list) : (int * int) list * ((int * int) * (uint32 * (char * int))) list = 
-                // let word = candidateWord.ToCharArray() |> Array.toList |> List.map (Utils.pairLetterWithPoint) |> Seq.toList
-                
                 let isNotBothWordDirections coords =
                     match getSquare coords sb with
                     | Some sq -> not (sq.orientation = Both)
@@ -239,7 +230,6 @@ module internal StatefulBoard =
                     | [] -> None
                     | coord :: coords ->
                         let possiblePlacements =
-                            // TODO This check might be redundant
                             if isNotBothWordDirections coord
                             then possibleWordPlacements coord candidateWord (getOppositeDirection coord) sb squares
                             else None
@@ -248,7 +238,6 @@ module internal StatefulBoard =
                         | Some (x :: _) -> Some x
                         | _ -> findFirstPossibleWordPlay coords
 
-                // debugPrint "Going to find first possible word play\n"
                 let playPayload = findFirstPossibleWordPlay [rootCoord]
                 match playPayload with
                 | Some payload ->

@@ -46,7 +46,6 @@
         = fun f mms ->
             fold (fun acc k v -> add (f k) v acc) empty mms
             
-    // We're going to abandon names s1 and s2 and embrace dataset circles naming (left & right)s
     let union : MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
         = fun left right ->
             fold (fun union k v -> if numItems k left < v then add k v union else union) left right

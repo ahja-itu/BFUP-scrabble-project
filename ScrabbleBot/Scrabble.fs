@@ -162,7 +162,6 @@ module Scrabble =
                  | _ -> send cstream (SMPlay longestPossibleWord') 
                 
             let msg = recv cstream
-            //debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
@@ -214,7 +213,6 @@ module Scrabble =
                     aux st'
              | RCM (CMChangeSuccess (newTiles)) -> 
                 debugPrint "CMChangeSucces\n"
-                // let hand' = MultiSet.toList st.hand |> List.head |> fun letter -> MultiSet.removeSingle letter st.hand
                 let hand'' = List.fold (fun handy (letter, count) -> MultiSet.add letter count handy) (MultiSet.ofList []) newTiles //from CMPlaySuccess case
                 let st' = {st with hand = hand''}
 

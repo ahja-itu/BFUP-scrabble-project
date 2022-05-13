@@ -1,6 +1,6 @@
 namespace EmmaGaddagBot
 
-module PointQuery =
+module internal PointQuery =
     
     type Protocol =
         | Put of int * int
