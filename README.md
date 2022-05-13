@@ -1,5 +1,11 @@
 # BFUP scrabble project for the group Ghost Variables
 
+
+Comments to the ones checking this assignment:
+
+- We want to excuse the slight spaghetty-ish code, but clean code was
+  not in scope of this project - making it work was
+
 ## Assignments requirements met:
 
 Requirements copied from the `scrabble.pdf` file

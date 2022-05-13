@@ -153,9 +153,13 @@ module Scrabble =
             
             debugPrint (sprintf "Will be attempting to play word: %A\n" longestPossibleWord')
             
+            
             match longestPossibleWord' with
-            | [] -> send cstream (SMChange (MultiSet.toList st.hand |> List.take st.piecesToSwap)) // yikes
-            | _ -> send cstream (SMPlay longestPossibleWord')
+                 | [] ->
+                     if st.piecesToSwap = 0
+                        then send cstream SMForfeit
+                        else send cstream (SMChange (MultiSet.toList st.hand |> List.take st.piecesToSwap)) // yikes
+                 | _ -> send cstream (SMPlay longestPossibleWord') 
                 
             let msg = recv cstream
             //debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
