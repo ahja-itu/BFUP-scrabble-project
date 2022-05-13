@@ -5,6 +5,7 @@ Comments to the ones checking this assignment:
 
 - We want to excuse the slight spaghetty-ish code, but clean code was
   not in scope of this project - making it work was
+- We've implemented our own Gaddag and use that. 
 
 ## Assignments requirements met:
 
