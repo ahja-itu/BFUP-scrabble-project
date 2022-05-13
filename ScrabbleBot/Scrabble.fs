@@ -55,10 +55,10 @@ module State =
         hand                : MultiSet.MultiSet<uint32>
         consecutivePasses   : uint32
         statefulBoard       : StatefulBoard
-        lastFailedPlay      : ((int * int) * (uint32 * (char * int))) list option
+        piecesToSwap        : int
     }
     
-    let mkState b d pn h cp sb = {board = b; dict = d;  playerNumber = pn; hand = h; consecutivePasses = cp; statefulBoard = sb; lastFailedPlay = None} 
+    let mkState b d pn h cp sb = {board = b; dict = d;  playerNumber = pn; hand = h; consecutivePasses = cp; statefulBoard = sb; piecesToSwap = (int << MultiSet.size) h } 
 
     let board st            = st.board
     let dict st             = st.dict
@@ -85,60 +85,76 @@ module Scrabble =
                 | Some sq -> false
                 | _ -> true
                             
-            let someLetter = MultiSet.toList st.hand |> List.head
-            let hand' = MultiSet.removeSingle someLetter st.hand
+            // We chose the last letter in the hand to avoid wild cards, since they cause problems on the first move
+            let someLetter = MultiSet.toList st.hand |> List.last
+            let hand' = st.hand
             let centerX, centerY = st.board.center
             
             let firstRoundPlay () =
                 WordSearch.findCandidateWords hand' st.dict (Utils.numberToLetter someLetter)
                 |> List.fold (Utils.chooseHighestScoringWord) []
-                |> Seq.mapi (fun i e -> ((centerX + i, centerY), ((Utils.letterToNumber (fst e)), Utils.pairLetterWithPoint (fst e))))
+                |> Seq.mapi (fun i e ->
+                    debugPrint (sprintf "Found character to play was: %A\n" e)
+                    match e with
+                    | c, 0 -> ((centerX + i, centerY), (0u, (c, 0)))
+                    | c, _ -> ((centerX + i, centerY), (Utils.letterToNumber c, Utils.pairLetterWithPoint c)))
                 |> Seq.toList
-                
+            
+            
+            PointQuery.print ()
+            
             // This is a function to attempt to find a playable word from one coordinate at the time
-            let rec singleWordPlay iteration =
-                if iteration > 1000 then ([], []) else
-                    match PointQuery.get () with
-                    | Some coord ->
-                        match getSquare coord st.statefulBoard with
-                            | Some sq ->
+            let rec singleWordPlay () =
+                match PointQuery.get () with
+                | Some coord ->
+                    match getSquare coord st.statefulBoard with
+                        | Some sq ->
+                             let rec chooseFirstAvailablePlay candidateWords =
+                                 match candidateWords with
+                                 | [] -> ([], [])
+                                 | word :: words -> match playFromWord st.statefulBoard st.board.squares st.hand (fst sq.letter, coord) word with
+                                                    | ([], []) -> chooseFirstAvailablePlay words
+                                                    | play -> play
+                             let candidate =
+                                 sq.letter
+                                 |> fst
+                                 |> Utils.letterToNumber
+                                 |> fun l -> MultiSet.addSingle l st.hand
+                                 |> fun mockHand -> WordSearch.findCandidateWords mockHand st.dict (fst sq.letter)
+                                 |> List.rev
+                                 |> chooseFirstAvailablePlay
                                  
-                                 let candidate =
-                                     sq.letter
-                                     |> fst
-                                     |> Utils.letterToNumber
-                                     |> fun l -> MultiSet.addSingle l st.hand
-                                     |> fun mockHand -> WordSearch.findCandidateWords mockHand st.dict (fst sq.letter)
-                                     |> List.fold (Utils.chooseHighestScoringWord) []
-                                     |> playFromWord st.statefulBoard st.board.squares st.hand (fst sq.letter, coord)
-                                     
-                                 match candidate with
-                                 | (_, []) -> PointQuery.put(coord); singleWordPlay (iteration + 1)
-                                 | res -> res
-                            | None ->
-                                if isFirstRound then ([], firstRoundPlay ()) else
-                                    PointQuery.put(coord); singleWordPlay (iteration + 1)
-                    | None -> ([], []) // We had an empty queue :(
+                             match candidate with
+                             | (_, []) -> singleWordPlay ()
+                             | res -> res
+                        | None ->
+                            if isFirstRound then ([], firstRoundPlay ()) else singleWordPlay ()
+                | None -> ([], [])
             
             
             // Look at this fancy parallelism
-            let (coordinatesToRemove, manyWordCandidates) = 
-                [0..2]
-                |> List.map (fun _ -> async { return singleWordPlay 0 })
+            let (coordinatesToRemove, theWordCandidate) = 
+                [0..19]
+                |> List.map (fun _ -> async { return singleWordPlay () })
                 |> Async.Parallel
                 |> Async.RunSynchronously
                 |> Array.toList
                 |> List.fold (fun (maxCoords, max) (currCoords, curr) -> if List.length max < List.length curr then (currCoords, curr) else (maxCoords, max)) ([], [])
                     
-            let longestPossibleWord' = manyWordCandidates
-
+            let longestPossibleWord' = theWordCandidate
+            PointQuery.resetAfterRound ()
+            
+            
+            for coord in coordinatesToRemove do
+                PointQuery.put(coord)
+                
             for (coord, _) in longestPossibleWord' do
-                if List.contains coord coordinatesToRemove then () else PointQuery.put(coord)
+                PointQuery.put(coord)
             
             debugPrint (sprintf "Will be attempting to play word: %A\n" longestPossibleWord')
             
             match longestPossibleWord' with
-            | [] -> send cstream (SMChange (MultiSet.toList st.hand)) // yikes
+            | [] -> send cstream (SMChange (MultiSet.toList st.hand |> List.take st.piecesToSwap)) // yikes
             | _ -> send cstream (SMPlay longestPossibleWord')
                 
             let msg = recv cstream
@@ -201,13 +217,7 @@ module Scrabble =
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 debugPrint "CMPlayFailed\n"
-                (* Failed play. Update your state *)
-                
-                
-                
-                // Lets attempt not to repeat failed plays by saving the last failed play
-                let st' = {st with lastFailedPlay = Some ms} 
-                aux st'
+                aux st
             | RCM (CMPassed _) -> // TODO keep track of consecutive passes, if 3 end game
                 debugPrint "CMPassed\n"
 
@@ -221,14 +231,22 @@ module Scrabble =
                 debugPrint (sprintf "%A\n" a)
                 failwith (sprintf "not implmented: %A" a)
             | RGPE err ->
+                debugPrint (sprintf "RGPE err: %A\n" err)
+                printfn "Gameplay Error:\n%A" err
                 
                 if List.contains GPEEmptyMove err
                 then PointQuery.print () else ()
                 
-                debugPrint (sprintf "RGPE err: %A\n" err)
-                printfn "Gameplay Error:\n%A" err
+                let reactToError st' err' =
+                    match err' with
+                    | GPENotEnoughPieces (_, actuallyLeft) -> {st with piecesToSwap = int actuallyLeft}
+                    | _ -> st'
                 
-                aux st
+                let st' = List.fold reactToError st err
+                        
+                
+                
+                aux st'
 
         aux st
 

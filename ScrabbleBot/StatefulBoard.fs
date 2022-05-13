@@ -256,7 +256,7 @@ module internal StatefulBoard =
                         List.map (fun tuple -> match tuple with
                                                | _, 0 -> (0u, tuple)  
                                                | _, _ -> (Utils.letterToNumber (fst tuple), tuple)) payload.word
-                        |> fun lst -> (payload.coordsToRemove, List.zip payload.coordinates lst)
+                        |> fun lst -> ([rootCoord], List.zip payload.coordinates lst)
                     else ([], [])
                 | None -> ([], [])
     

@@ -38,3 +38,5 @@ module internal Utils =
             let countPoints lst =
                 List.map snd lst |> List.fold (+) 0
             if countPoints a < countPoints b then b else a
+            
+            

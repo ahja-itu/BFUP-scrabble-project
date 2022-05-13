@@ -1,6 +1,7 @@
 namespace EmmaGaddagBot
 open System.Collections.Generic
-open System.Diagnostics
+open System.Linq
+
 open ScrabbleUtil
 
 module PointQuery =
@@ -10,17 +11,24 @@ module PointQuery =
         | Get of AsyncReplyChannel<(int * int) option>
     
     let mutable queue = Queue<int * int>()
+    let mutable holdQueue = Queue<int * int>()
 
     let postbox =
         let aux (inbox: MailboxProcessor<Protocol>) =
             let rec loop () = async {
                 let! msg = inbox.Receive()
                 match msg with
-                | Put (x, y) -> DebugPrint.debugPrint (sprintf "Enqueue %A\n" (x, y)); queue.Enqueue((x, y))
+                | Put (x, y) ->
+                    
+                    if queue.Contains((x, y)) then
+                        queue <- Queue<(int * int)>(queue.Where(fun (x', y') -> not ((x, y) = (x', y'))))
+                    else queue.Enqueue((x, y))
                 | Get ch ->
                     match queue.TryDequeue() with
-                    | true, coord -> DebugPrint.debugPrint (sprintf "Dequeue %A\n" coord); ch.Reply(Some coord)
-                    | false, _ -> DebugPrint.debugPrint "PointQuery queue empty!!!\n"; ch.Reply(None)
+                    | true, coord ->    
+                        holdQueue.Enqueue(coord)
+                        ch.Reply(Some coord)
+                    | false, _ -> ch.Reply(None)
                 return! loop ()
             }
             loop()
@@ -34,6 +42,11 @@ module PointQuery =
     let put : (int * int) -> unit
         = fun coord -> postbox.Post(Put coord)
 
+    let resetAfterRound () =
+        queue <- holdQueue
+        holdQueue <- Queue<(int * int)>()
+        ()
+    
     let print : unit -> unit
         = fun () ->
             DebugPrint.debugPrint "##################################"            
