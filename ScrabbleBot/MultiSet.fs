@@ -7,8 +7,8 @@
     let empty = MS Map.empty<'a, uint32>
     let size (MS ms) = Map.fold (fun acc k v -> acc + v) 0u ms
     let isEmpty mms = size mms = 0u
-    let contains a (MS ms) = ms.ContainsKey a
     let numItems a (MS ms) = ms.TryFind a |> Option.defaultValue 0u
+    let contains a (MS ms) = ms.ContainsKey a && (numItems a (MS ms) > 0u)
     let add a n mms =
         numItems a mms 
         |> (fun count -> (unpack mms).Add (a, n + count))
@@ -18,7 +18,11 @@
     
     let remove a n mms =
         numItems a mms
-        |> (fun count -> (unpack mms).Add (a, (safeDecrease count n)))
+        |> (fun count ->
+            let newVal = safeDecrease count n
+            in if newVal = 0u 
+               then (unpack mms).Remove(a) 
+               else (unpack mms).Add (a, (newVal)))
         |> MS
         
     let removeSingle a mms = remove a 1u mms
@@ -42,7 +46,6 @@
         = fun f mms ->
             fold (fun acc k v -> add (f k) v acc) empty mms
             
-    // We're going to abandon names s1 and s2 and embrace dataset circles naming (left & right)s
     let union : MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
         = fun left right ->
             fold (fun union k v -> if numItems k left < v then add k v union else union) left right

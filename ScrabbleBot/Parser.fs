@@ -200,8 +200,6 @@ module internal Parser
     let IsDigitParse  = pIsDigit  >*>. parenthesise charParse |>> IsDigit  <?> "IsDigit"
     let IsVowelParse  = pIsVowel  >*>. parenthesise charParse |>> IsVowel  <?> "IsVowel"
 
-    // TODO: Nuværende implementation kan ikke håndtere parenteser der grupperer statements sammen
-
     do bp1ref.Value <-
         choice [
             ConjunctionParse
@@ -288,7 +286,13 @@ module internal Parser
     // Inserted from newest project template
     (* The rest of your parser goes here *)
     type word   = (char * int) list
+
+
+    // 
     type squareFun = word -> int -> int -> Result<int, Error>
+
+    // From assignment 2: Map<priority, f> where f is a function that can calulate a given word
+    //                    or tiles "modifiers": singleLetterScore, doubleWordScore.....
     type square = Map<int, squareFun>
     
     type boardFun2 = coord -> Result<square option, Error>

@@ -21,15 +21,15 @@ let spawnMultiples name dict bot =
 
 [<EntryPoint>]
 let main argv =
-    ScrabbleUtil.DebugPrint.toggleDebugPrint true // Change to false to supress debug output
+    ScrabbleUtil.DebugPrint.toggleDebugPrint false // Change to false to supress debug output
 
     System.Console.BackgroundColor <- System.ConsoleColor.White
     System.Console.ForegroundColor <- System.ConsoleColor.Black
     System.Console.Clear()
 
 
-    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
-//    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
+//    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
+    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
 
 //    let board      = ScrabbleUtil.RandomBoard.randomBoard ()
 //    let board      = ScrabbleUtil.RandomBoard.randomBoardSeed (Some 42)
@@ -50,23 +50,25 @@ let main argv =
     let dictAPI =
         // Uncomment if you have implemented a dictionary. last element None if you have not implemented a GADDAG
         Some (Dictionary.empty, Dictionary.insert, Dictionary.step, Some Dictionary.reverse) 
-        // None
+        //None
 
     let (dictionary, time) = time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
 
     // Uncomment to test your dictionary
-    ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test sucessful\n")
-    let incorrectWords = ScrabbleUtil.Dictionary.test words 10 (dictionary true) // change to true if using a GADDAG
-    match incorrectWords with
-    | [] -> ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test sucessful!\n")
-    | _  ->
-       ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test failed for at least the following words: \n") 
-       List.iter (fun str -> ScrabbleUtil.DebugPrint.debugPrint (sprintf "%s\n" str)) incorrectWords
+    // ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test sucessful\n")
+    // let incorrectWords = ScrabbleUtil.Dictionary.test words 10 (dictionary true) // change to true if using a GADDAG
+    // match incorrectWords with
+    // | [] -> ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test sucessful!\n")
+    // | _  ->
+    //    ScrabbleUtil.DebugPrint.debugPrint ("Dictionary test failed for at least the following words: \n") 
+    //    List.iter (fun str -> ScrabbleUtil.DebugPrint.debugPrint (sprintf "%s\n" str)) incorrectWords
     
     // Uncomment this line to call your client
-    // let players    = [("Emma Gaddag", dictionary, EmmaGaddagBot.Scrabble.startGame)]
-    let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
-        
+    let players    
+         = [("Emma Gaddag", dictionary, EmmaGaddagBot.Scrabble.startGame)]
+    // let players 
+    //     = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
+     
 
     do ScrabbleServer.Comm.startGame 
           board dictionary handSize timeout tiles seed port players
