@@ -7,7 +7,9 @@
 
   <ItemGroup>
 
-    <Content Include="Dictionaries\English.txt" />
+    <Content Include="Dictionaries\English.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Compile Include="Dictionary.fsi" />
     <Compile Include="Dictionary.fs" />
     <Compile Include="Program.fs" />
@@ -22,6 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="..\ScrabbleBot\ScrabbleBot.fsproj" />
   </ItemGroup>
+
+  <Target Name="AddPayloadsFolder" AfterTargets="Release">
+    <Exec Command="xcopy &quot;$(TargetDir)*.abi&quot; &quot;$(PublishDir)&quot; /Y /I" />
+  </Target>
 
   <ItemGroup>
     <Reference Include="Oxyphenbutazone, Version=1.0.11.0, Culture=neutral, PublicKeyToken=null">
